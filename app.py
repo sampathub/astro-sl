@@ -17,7 +17,7 @@ def get_ai_response(prompt):
         if not key: continue
         try:
             genai.configure(api_key=key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             return model.generate_content(prompt).text
         except: continue
     return "AI සේවාව දැනට කාර්යබහුලයි. පසුව උත්සාහ කරන්න."
