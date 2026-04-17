@@ -1,4 +1,5 @@
 streamlit
 pyswisseph
 google-generativeai
-matplotlib
+Pillow
+requests
