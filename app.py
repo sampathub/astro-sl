@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw
 import requests, json
 
 # --- Config & AI ---
-st.set_page_config(page_title="AstroPro SL Ultimate v17", page_icon="☸️", layout="wide")
+st.set_page_config(page_title="AstroPro SL Ultimate v18", page_icon="☸️", layout="wide")
 
 def get_ai_prediction(data):
     for i in range(1, 4):
@@ -14,11 +14,11 @@ def get_ai_prediction(data):
         if key:
             try:
                 genai.configure(api_key=key); model = genai.GenerativeModel('gemini-2.5-flash')
-                return model.generate_content(f"ඔබ ප්‍රවීණ සිංහල ජ්‍යොතිෂවේදියෙකි. මෙම දත්ත වල පලාපල සිංහලෙන් ලියන්න: {data}").text
+                return model.generate_content(f"ඔබ ප්‍රවීණ සිංහල ජ්‍යොතිෂවේදියෙකි. මෙම දත්ත මත පදනම්ව දීර්ඝ පලාපල විස්තරයක් සිංහලෙන් කරන්න: {data}").text
             except: continue
-    return "AI සේවාව කාර්යබහුලයි."
+    return "AI සේවාව දැනට කාර්යබහුලයි."
 
-# --- 100% Correct Astrological Data Tables ---
+# --- 100% Accurate Data Tables ---
 DISTRICTS = {
     "කොළඹ": (6.9271, 79.8612), "ගම්පහ": (7.0840, 79.9927), "කළුතර": (6.5854, 79.9607),
     "මහනුවර": (7.2906, 80.6337), "මාතලේ": (7.4675, 80.6234), "නුවරඑළිය": (6.9497, 80.7891),
@@ -40,9 +40,9 @@ PAKSHI = ["හොට කිරලා","කපුටා","කපුටා","ප�
 D_LORDS = ["කේතු", "සිකුරු", "රවි", "සඳු", "කුජ", "රාහු", "ගුරු", "ශනි", "බුධ"]
 D_YEARS = [7, 20, 6, 10, 7, 18, 16, 19, 17]
 
-# --- UI Layout ---
+# --- UI ---
 with st.sidebar:
-    st.header("👤 උපන් දත්ත")
+    st.header("👤 උපන් තොරතුරු")
     u_name = st.text_input("නම")
     u_dob = st.date_input("දිනය", value=date(1995,5,20), min_value=date(1900,1,1), max_value=date(2100,12,31))
     c = st.columns(3); u_h = c[0].number_input("පැය",0,23,10); u_m = c[1].number_input("විනා",0,59,30); u_s = c[2].number_input("තත්",0,59,0)
@@ -54,16 +54,14 @@ if st.button("කේන්ද්‍රය ගණනය කරන්න"):
     if u_name:
         try:
             lat, lon = DISTRICTS[u_city]
-            # Time calculation for Sri Lanka (UTC+5.5)
-            decimal_hour = u_h + u_m/60.0 + u_s/3600.0 - 5.5
-            jd = swe.julday(u_dob.year, u_dob.month, u_dob.day, decimal_hour)
+            jd = swe.julday(u_dob.year, u_dob.month, u_dob.day, u_h + u_m/60.0 + u_s/3600.0 - 5.5)
             swe.set_sid_mode(swe.SIDM_LAHIRI)
             
-            # Lagna Calculation
-            houses, ascmc = swe.houses_ex(jd, lat, lon, b'P', swe.FLG_SIDEREAL)
+            # Lagna
+            _, ascmc = swe.houses_ex(jd, lat, lon, b'P', swe.FLG_SIDEREAL)
             lag_idx = int(ascmc[0]/30)
             
-            # Planet Positions
+            # Planets & Moon
             pos_map = {i: [] for i in range(12)}; moon_lon = 0
             planets = {"රවි":0,"සඳු":1,"කුජ":4,"බුධ":2,"ගුරු":5,"සිකුරු":3,"ශනි":6,"රාහු":10}
             for name, pid in planets.items():
@@ -71,16 +69,12 @@ if st.button("කේන්ද්‍රය ගණනය කරන්න"):
                 if pid == 1: moon_lon = res[0]
                 pos_map[int(res[0]/30)].append(name)
             
-            # Panchanga Calculations (Index-based)
-            n_idx = int(moon_lon / (360/27))
-            n_idx = max(0, min(n_idx, 26)) # Safety
-            
-            # Dasha Logic
+            # Index Calculation
+            n_idx = min(int(moon_lon / (360/27)), 26)
             d_idx = n_idx % 9
-            nak_start = n_idx * (360/27)
-            balance = (1 - ((moon_lon - nak_start) / (360/27))) * D_YEARS[d_idx]
+            bal = (1 - ((moon_lon - (n_idx*(360/27))) / (360/27))) * D_YEARS[d_idx]
             
-            # --- UI Display ---
+            # UI Output
             st.header(f"📊 {u_name} මහතාගේ වාර්තාව")
             col1, col2 = st.columns([1,1])
             with col1:
@@ -94,27 +88,22 @@ if st.button("කේන්ද්‍රය ගණනය කරන්න"):
                         draw.text((x+25,y+40+(i*25)), p_en, "black")
                 st.image(img, caption="කේන්ද්‍ර සටහන")
             with col2:
-                st.subheader("📝 පංචාංග විස්තර")
-                st.markdown(f"**ලග්නය:** {RA_NAMES[lag_idx]} | **නැකත:** {NAK_NAMES[n_idx]}")
-                st.markdown(f"**ගණය:** {GANA[n_idx]} | **ලිංගය:** {LINGA[n_idx]} | **යෝනිය:** {YONI[n_idx]}")
-                st.markdown(f"**වෘක්ෂය:** {VRUKSHA[n_idx]} | **පක්ෂියා:** {PAKSHI[n_idx]}")
-                
+                st.subheader("📝 පංචාංගය")
+                st.write(f"**ලග්නය:** {RA_NAMES[lag_idx]} | **නැකත:** {NAK_NAMES[n_idx]}")
+                st.write(f"**ගණය:** {GANA[n_idx]} | **ලිංගය:** {LINGA[n_idx]} | **යෝනිය:** {YONI[n_idx]}")
+                st.write(f"**වෘක්ෂය:** {VRUKSHA[n_idx]} | **පක්ෂියා:** {PAKSHI[n_idx]}")
                 st.subheader("🗓️ මහා දශාව")
-                st.info(f"උපතේදී හිමි දශාව: {D_LORDS[d_idx]}")
-                st.write(f"ඉතිරි කාලය: වසර {int(balance)} මාස {int((balance%1)*12)} කි.")
-                
-                cy = u_dob.year + balance
+                st.info(f"උපතේදී හිමි දශාව: {D_LORDS[d_idx]} (ඉතිරි වසර {int(bal)} මාස {int((bal%1)*12)})")
+                cy = u_dob.year + bal
                 for i in range(1, 4):
-                    idx = (d_idx + i) % 9
-                    st.write(f"• {D_LORDS[idx]} දශාව: {int(cy)} සිට {int(cy+D_YEARS[idx])} දක්වා")
-                    cy += D_YEARS[idx]
+                    idx = (d_idx + i) % 9; st.write(f"• {D_LORDS[idx]} දශාව: {int(cy)} සිට {int(cy+D_YEARS[idx])} දක්වා"); cy += D_YEARS[idx]
             
-            st.session_state['data'] = {"n":u_name,"l":RA_NAMES[lag_idx],"nk":NA_NAMES[n_idx],"g":GANA[n_idx],"y":YONI[n_idx]}
+            st.session_state['astro_data'] = f"නම: {u_name}, ලග්නය: {RA_NAMES[lag_idx]}, නැකත: {NAK_NAMES[n_idx]}, ගණය: {GANA[n_idx]}, යෝනිය: {YONI[n_idx]}"
         except Exception as e: st.error(f"Error: {e}")
     else: st.warning("නම ඇතුළත් කරන්න.")
 
-if 'data' in st.session_state:
+if 'astro_data' in st.session_state:
     st.divider()
     if st.button("🔮 AI පලාපල වාර්තාව ලබාගන්න"):
-        with st.spinner("Gemini AI පලාපල වාර්තාව සකසමින්..."):
-            st.markdown(get_ai_prediction(str(st.session_state['data'])))
+        with st.spinner("AI විශ්ලේෂණය කරමින්..."):
+            st.markdown(get_ai_prediction(st.session_state['astro_data']))
