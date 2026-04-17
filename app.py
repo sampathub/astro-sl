@@ -7,7 +7,7 @@ import requests
 import json
 
 # --- Configuration ---
-st.set_page_config(page_title="AstroPro SL Ultimate", page_icon="☸️", layout="wide")
+st.set_page_config(page_title="AstroPro SL v12", page_icon="☸️", layout="wide")
 
 # --- 1. Multi-API AI Support ---
 def get_ai_prediction(summary_data):
@@ -17,12 +17,12 @@ def get_ai_prediction(summary_data):
         if not key: continue
         try:
             genai.configure(api_key=key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             return model.generate_content(prompt).text
         except: continue
     return "AI සේවාව දැනට කාර්යබහුලයි."
 
-# --- 2. කේන්ද්‍ර සටහන පැහැදිලිව ඇඳීම ---
+# --- 2. කේන්ද්‍ර සටහන ඇඳීම ---
 def draw_styled_chart(pos_map, lagna_idx):
     img = Image.new('RGB', (600, 600), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
@@ -40,44 +40,51 @@ def draw_styled_chart(pos_map, lagna_idx):
             draw.text((x+25, y+45+(i*25)), p_short.get(p, p), fill="black")
     return img
 
-# --- 3. දත්ත වගු ---
-DISTRICTS = {"කෑගල්ල": (7.2513, 80.3464), "කොළඹ": (6.9271, 79.8612), "ගම්පහ": (7.0840, 79.9927), "මහනුවර": (7.2906, 80.6337), "ගාල්ල": (6.0535, 80.2210), "මාතර": (5.9549, 80.5550), "හම්බන්තොට": (6.1246, 81.1245), "යාපනය": (9.6615, 80.0255), "කුරුණෑගල": (7.4863, 80.3647), "අනුරාධපුරය": (8.3114, 80.4037), "බදුල්ල": (6.9934, 81.0550), "රත්නපුරය": (6.7056, 80.3847)}
+# --- 3. නිවැරදි කරන ලද දත්ත වගු (Fixed Indexing) ---
 RA_NAMES = ["මේෂ", "වෘෂභ", "මිථුන", "කටක", "සිංහ", "කන්යා", "තුලා", "වෘශ්චික", "ධනු", "මකර", "කුම්භ", "මීන"]
 NAK_NAMES = ["අස්විද", "බෙරණ", "කැති", "රෙහෙන", "මුවසිරස", "අද", "පුනාවස", "පුස", "අස්ලිස", "මා", "පුවපල්", "උත්රපල්", "හත", "සිත", "සා", "විසා", "අනුර", "දෙට", "මුල", "පුවසල", "උත්රසල", "සුවණ", "දෙනට", "සියාවස", "පුවපුටුප", "උත්රපුටුප", "රේවතී"]
+
+# නැකත් 27 ට අදාළ නිවැරදි දත්ත
 VRUKSHA_TABLE = ["කදම්බ", "නෙල්ලි", "දිවුල්", "කරඹ", "කීරිය", "තිඹිරි", "උණ", "බෝගහ", "නුග", "පලු", "කෑල", "නුග", "වල් දෙල්", "බෙලි", "කුඹුක්", "මීඹ", "දම්", "වැටකේ", "සල්", "පුවක්", "පිහිඹියා", "වෙලං", "ලූණුමකරල", "කලවැල්", "කොහොඹ", "මී", "වැටකේ"]
 PAKSHI_TABLE = ["හොට කිරලා", "කපුටා", "කපුටා", "පින්නකිකිළි", "පින්නකිකිළි", "පින්නකිකිළි", "මොණරා", "මොණරා", "කුකුළා", "කුකුළා", "කුකුළා", "කුකුළා", "කුකුළා", "කුකුළා", "මොණරා", "මොණරා", "මොණරා", "මොණරා", "සිංහයා", "සිංහයා", "සිංහයා", "සිංහයා", "සිංහයා", "සිංහයා", "මොණරා", "මොණරා", "මොණරා"]
+GANA_TABLE = ["දේව", "මනුෂ්‍ය", "රාක්ෂ", "මනුෂ්‍ය", "දේව", "මනුෂ්‍ය", "දේව", "දේව", "රාක්ෂ", "රාක්ෂ", "මනුෂ්‍ය", "මනුෂ්‍ය", "දේව", "රාක්ෂ", "දේව", "රාක්ෂ", "දේව", "රාක්ෂ", "රාක්ෂ", "මනුෂ්‍ය", "මනුෂ්‍ය", "දේව", "රාක්ෂ", "රාක්ෂ", "මනුෂ්‍ය", "මනුෂ්‍ය", "දේව"]
+
 DASHA_LORDS = ["කේතු", "සිකුරු", "රවි", "සඳු", "කුජ", "රාහු", "ගුරු", "ශනි", "බුධ"]
 DASHA_YEARS = [7, 20, 6, 10, 7, 18, 16, 19, 17]
 
-# --- 4. Sidebar ---
+DISTRICTS = {"කෑගල්ල": (7.2513, 80.3464), "කොළඹ": (6.9271, 79.8612), "ගම්පහ": (7.0840, 79.9927), "මහනුවර": (7.2906, 80.6337), "ගාල්ල": (6.0535, 80.2210), "මාතර": (5.9549, 80.5550)}
+
+# --- 4. UI ---
 with st.sidebar:
-    st.header("👤 පෞද්ගලික තොරතුරු")
-    u_name = st.text_input("සම්පූර්ණ නම")
-    # මෙන්න මේ පේළිය තමයි Date Limit එක පාලනය කරන්නේ - දැන් මෙය නිදහස් කර ඇත
+    st.header("👤 විස්තර")
+    u_name = st.text_input("නම")
     u_dob = st.date_input("උපන් දිනය", value=date(1995, 5, 20), min_value=date(1900, 1, 1), max_value=date(2100, 12, 31))
     t_col = st.columns(3)
     u_h = t_col[0].number_input("පැය", 0, 23, 10)
     u_m = t_col[1].number_input("විනාඩි", 0, 59, 30)
     u_s = t_col[2].number_input("තත්", 0, 59, 0)
     u_city = st.selectbox("දිස්ත්‍රික්කය", list(DISTRICTS.keys()))
-    if st.button("දත්ත මකන්න"):
+    if st.button("🔄 Clear"):
         st.session_state.clear()
         st.rerun()
 
-# --- 5. Logic ---
-st.title("☸️ AstroPro Sri Lanka")
+st.title("☸️ AstroPro SL - Final Optimized")
 
 if st.button("කේන්ද්‍රය ගණනය කරන්න"):
-    if not u_name.strip():
+    if not u_name:
         st.error("කරුණාකර නම ඇතුළත් කරන්න.")
     else:
         try:
             lat, lon = DISTRICTS[u_city]
+            # UTC 5.5 Offset Correction
             jd = swe.julday(u_dob.year, u_dob.month, u_dob.day, u_h + u_m/60.0 + u_s/3600.0 - 5.5)
             swe.set_sid_mode(swe.SIDM_LAHIRI)
+            
+            # ලග්නය
             houses, ascmc = swe.houses_ex(jd, lat, lon, b'P', swe.FLG_SIDEREAL)
             lagna_idx = int(ascmc[0] / 30)
             
+            # ග්‍රහයන්
             planets_def = {"රවි":0, "සඳු":1, "කුජ":4, "බුධ":2, "ගුරු":5, "සිකුරු":3, "ශනි":6, "රාහු":10}
             pos_map = {i: [] for i in range(12)}
             moon_lon = 0
@@ -86,44 +93,50 @@ if st.button("කේන්ද්‍රය ගණනය කරන්න"):
                 if p_id == 1: moon_lon = res[0]
                 pos_map[int(res[0] / 30)].append(p_name)
             
+            # --- නිවැරදි පංචාංග ගණනය ---
+            # නැකතේ Index එක නිවැරදිව ලබා ගැනීම (0-26)
             nak_idx = int(moon_lon / (360/27))
-            dasha_idx = nak_idx % 9
+            if nak_idx > 26: nak_idx = 26 # ආරක්ෂිත පියවරක්
+            
+            v_nak = NAK_NAMES[nak_idx]
+            v_gana = GANA_TABLE[nak_idx]
+            v_vruksha = VRUKSHA_TABLE[nak_idx]
+            v_pakshi = PAKSHI_TABLE[nak_idx]
+            
+            # දශා ගණනය
+            dasha_lord_idx = nak_idx % 9
             nak_start = nak_idx * (360/27)
-            passed_deg = moon_lon - nak_start
-            balance_years = (1 - (passed_deg / (360/27))) * DASHA_YEARS[dasha_idx]
+            balance_factor = 1 - ((moon_lon - nak_start) / (360/27))
+            balance_years = balance_factor * DASHA_YEARS[dasha_lord_idx]
 
-            st.session_state['data'] = {"name":u_name, "lagna":RA_NAMES[lagna_idx], "nak":NAK_NAMES[nak_idx], "vruksha":VRUKSHA_TABLE[nak_idx], "pakshi":PAKSHI_TABLE[nak_idx]}
-
-            st.header(f"📊 {u_name} මහතාගේ/මියගේ විස්තර")
+            # Output
+            st.header(f"📊 {u_name} මහතාගේ විස්තර")
             c1, c2 = st.columns([1, 1])
             with c1:
-                st.image(draw_styled_chart(pos_map, lagna_idx), caption="පැහැදිලි කේන්ද්‍ර සටහන")
+                st.image(draw_styled_chart(pos_map, lagna_idx), caption="සාම්ප්‍රදායික කේන්ද්‍ර සටහන")
             with c2:
                 st.subheader("📝 පංචාංග තොරතුරු")
-                st.write(f"**ලග්නය:** {RA_NAMES[lagna_idx]} | **නැකත:** {NAK_NAMES[nak_idx]}")
-                st.write(f"**වෘක්ෂය:** {VRUKSHA_TABLE[nak_idx]} | **පක්ෂියා:** {PAKSHI_TABLE[nak_idx]}")
-                st.write(f"**ගණය:** {['දේව','මනුෂ්‍ය','රාක්ෂ'][nak_idx % 3]}")
+                st.markdown(f"**ලග්නය:** {RA_NAMES[lagna_idx]} | **නැකත:** {v_nak}")
+                st.markdown(f"**ගණය:** {v_gana} | **වෘක්ෂය:** {v_vruksha} | **පක්ෂියා:** {v_pakshi}")
                 
-                st.subheader("🗓️ මහා දශා කාලයන්")
-                st.success(f"උපතේදී හිමි දශාව: {DASHA_LORDS[dasha_idx]}")
+                st.subheader("🗓️ මහා දශා පාලනය")
+                st.info(f"උපතේදී හිමි දශාව: {DASHA_LORDS[dasha_lord_idx]}")
                 st.write(f"ඉතිරි කාලය: වසර {int(balance_years)} යි, මාස {int((balance_years%1)*12)} කි.")
                 
-                curr_y = u_dob.year + balance_years
+                curr_yr = u_dob.year + balance_years
                 for i in range(1, 4):
-                    idx = (dasha_idx + i) % 9
-                    st.write(f"• {DASHA_LORDS[idx]} දශාව: {int(curr_y)} සිට {int(curr_y + DASHA_YEARS[idx])} දක්වා")
-                    curr_y += DASHA_YEARS[idx]
+                    idx = (dasha_lord_idx + i) % 9
+                    st.write(f"• {DASHA_LORDS[idx]} දශාව: {int(curr_yr)} සිට {int(curr_yr + DASHA_YEARS[idx])} දක්වා")
+                    curr_yr += DASHA_YEARS[idx]
 
-            # Firebase Logging
-            f_url = st.secrets.get("FIREBASE_DATABASE_URL")
-            if f_url: requests.post(f"{f_url}/astro.json", data=json.dumps({"name":u_name, "time":str(datetime.now())}))
+            st.session_state['astro'] = {"name":u_name, "lagna":RA_NAMES[lagna_idx], "nak":v_nak, "gana":v_gana}
 
         except Exception as e:
             st.error(f"Error: {e}")
 
-if 'data' in st.session_state:
+if 'astro' in st.session_state:
     st.divider()
-    if st.button("🤖 AI පලාපල වාර්තාව ලබාගන්න"):
+    if st.button("🤖 AI පලාපල වාර්තාව"):
         with st.spinner("AI විශ්ලේෂණය කරමින්..."):
-            res = get_ai_prediction(str(st.session_state['data']))
+            res = get_ai_prediction(str(st.session_state['astro']))
             st.markdown(res)
