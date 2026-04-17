@@ -6,9 +6,14 @@ from datetime import datetime, timedelta
 # --- Configuration ---
 st.set_page_config(page_title="AstroPro Sri Lanka v6", page_icon="☸️", layout="wide")
 
-## පැරණි API_KEY පේළිය ඉවත් කර මෙය ඇතුළත් කරන්න
-API_KEY = st.secrets["GEMINI_API_KEY"]
-genai.configure(api_key=API_KEY)
+# API Key එක Secrets වලින් ලබා ගැනීම
+try:
+    API_KEY = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=API_KEY)
+    # AI මාදිලිය මෙහිදී හඳුන්වා දිය යුතුය (Define model)
+    model = genai.GenerativeModel('gemini-2.5-flash')
+except Exception as e:
+    st.error("API Key එක සොයාගත නොහැක. කරුණාකර Streamlit Secrets පරීක්ෂා කරන්න.")
 
 # --- Data Arrays ---
 DISTRICTS = {
@@ -39,7 +44,6 @@ with st.sidebar:
     s = t_col[2].number_input("තත්", 0, 59, 0)
     city = st.selectbox("උපන් දිස්ත්‍රික්කය", list(DISTRICTS.keys()))
     
-    # Clear Data Button
     if st.button("දත්ත මකා අලුතින් අරඹන්න"):
         st.rerun()
 
@@ -78,7 +82,7 @@ if st.button("කේන්ද්‍රය සහ දීර්ඝ AI පලාප
             st.subheader("📍 කේන්ද්‍ර සටහන")
             chart = [["" for _ in range(4)] for _ in range(4)]
             mapping = {11:(0,0), 0:(0,1), 1:(0,2), 2:(0,3), 10:(1,0), 3:(1,3), 9:(2,0), 4:(2,3), 8:(3,0), 7:(3,1), 6:(3,2), 5:(3,3)}
-            temp_map = pos_map.copy()
+            temp_map = {k: v[:] for k, v in pos_map.items()}
             if "ලග්නය" not in temp_map[lagna_idx]: temp_map[lagna_idx].append("ලග්නය")
             for r_idx, names in temp_map.items():
                 r, c = mapping[r_idx]
@@ -131,7 +135,7 @@ if st.button("කේන්ද්‍රය සහ දීර්ඝ AI පලාප
         d_table.append({"මහා දශාව": DASHA_LORDS[lord_idx], "අවසානය": end_date.strftime('%Y-%m-%d'), "තත්ත්වය": "ශේෂය"})
         
         next_s = end_date
-        for i in range(1, 6): # ඉදිරි දශා 5ක් පෙන්වමු
+        for i in range(1, 6):
             idx = (lord_idx + i) % 9
             end = next_s + timedelta(days=DASHA_YEARS[idx] * 365.25)
             d_table.append({"මහා දශාව": DASHA_LORDS[idx], "අවසානය": end.strftime('%Y-%m-%d'), "තත්ත්වය": "ඉදිරියට"})
@@ -139,4 +143,4 @@ if st.button("කේන්ද්‍රය සහ දීර්ඝ AI පලාප
         st.table(d_table)
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"දෝෂයක් සිදු විය: {e}")
