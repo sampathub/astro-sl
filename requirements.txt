@@ -1,3 +1,4 @@
 streamlit
 pyswisseph
 google-generativeai
+matplotlib
