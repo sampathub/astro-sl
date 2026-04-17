@@ -2,24 +2,24 @@ import streamlit as st
 import swisseph as swe
 import google.generativeai as genai
 from datetime import datetime, timedelta
-import requests # Firebase සදහා
+from PIL import Image, ImageDraw
+import requests
 import json
 
 # --- Configuration ---
-st.set_page_config(page_title="AstroPro Sri Lanka v7", page_icon="☸️", layout="wide")
+st.set_page_config(page_title="AstroPro Visual SL", page_icon="☸️", layout="wide")
 
-# --- 1. Multi-API Key Support (Load Balancing) ---
-# Secrets වල GEMINI_API_KEY_1, GEMINI_API_KEY_2 ලෙස Keys කිහිපයක් දිය හැක
-API_KEYS = [
-    st.secrets.get("GEMINI_API_KEY_1"),
-    st.secrets.get("GEMINI_API_KEY_2"),
-    st.secrets.get("GEMINI_API_KEY_3")
-]
-# වැඩ කරන Key එකක් තෝරාගැනීම
-current_key = next((k for k in API_KEYS if k), None)
-
-def generate_ai_content(prompt):
-    for key in API_KEYS:
+# --- Multi-API AI Support ---
+def get_ai_prediction(summary_data):
+    keys = [
+        st.secrets.get("GEMINI_API_KEY_1"),
+        st.secrets.get("GEMINI_API_KEY_2"),
+        st.secrets.get("GEMINI_API_KEY_3")
+    ]
+    
+    prompt = f"ඔබ ප්‍රවීණ ජ්‍යොතිෂවේදියෙකි. මෙම දත්ත මත පදනම්ව ඉතා දීර්ඝ පලාපල විග්‍රහයක් සිංහලෙන් කරන්න: {summary_data}"
+    
+    for key in keys:
         if not key: continue
         try:
             genai.configure(api_key=key)
@@ -27,106 +27,108 @@ def generate_ai_content(prompt):
             response = model.generate_content(prompt)
             return response.text
         except Exception:
-            continue # එකක් වැඩ නැත්නම් ඊළඟ එකට යන්න
-    return "කණගාටුයි, සියලුම AI සේවාවන් මේ මොහොතේ කාර්යබහුලයි."
+            continue
+    return "කණගාටුයි, සියලුම AI සේවාවන් කාර්යබහුලයි."
 
-# --- 2. Firebase Database Config ---
-FIREBASE_URL = "YOUR_FIREBASE_DATABASE_URL" # ඔබේ Firebase URL එක මෙතැනට දමන්න
+# --- සාම්ප්‍රදායික කේන්ද්‍ර සටහන ඇඳීමේ Function එක ---
+def draw_horoscope_chart(pos_map, lagna_idx):
+    img = Image.new('RGB', (400, 400), color=(255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    for i in range(5):
+        draw.line([(i*100, 0), (i*100, 400)], fill="black", width=2)
+        draw.line([(0, i*100), (400, i*100)], fill="black", width=2)
+    draw.rectangle([100, 100, 300, 300], fill="#f0f0f0", outline="black")
+    
+    grid_map = {11:(0,0), 0:(100,0), 1:(200,0), 2:(300,0), 10:(0,100), 3:(300,100),
+                9:(0,200), 4:(300,200), 8:(0,300), 7:(100,300), 6:(200,300), 5:(300,300)}
+    
+    for r_idx, (x, y) in grid_map.items():
+        if r_idx == lagna_idx:
+            draw.text((x+40, y+10), "L", fill="red")
+        planets = pos_map.get(r_idx, [])
+        for i, p in enumerate(planets):
+            draw.text((x+10, y+30+(i*15)), p, fill="black")
+    return img
 
-def save_to_firebase(user_data):
-    try:
-        # sampathub89_gmail_com ලෙස Folder එකක් සැදීම
-        db_path = f"{FIREBASE_URL}/users/sampathub89_gmail_com.json"
-        requests.post(db_path, data=json.dumps(user_data))
-    except Exception as e:
-        print(f"Firebase Error: {e}")
-
-# --- Data Arrays ---
-DISTRICTS = {
-    "කොළඹ": (6.9271, 79.8612), "ගම්පහ": (7.0840, 79.9927), "කළුතර": (6.5854, 79.9607),
-    "මහනුවර": (7.2906, 80.6337), "මාතලේ": (7.4675, 80.6234), "නුවරඑළිය": (6.9497, 80.7891),
-    "ගාල්ල": (6.0535, 80.2210), "මාතර": (5.9549, 80.5550), "හම්බන්තොට": (6.1246, 81.1245),
-    "යාපනය": (9.6615, 80.0255), "කිලිනොච්චිය": (9.3854, 80.3921), "මන්නාරම": (8.9810, 79.9044),
-    "වවුනියාව": (8.7542, 80.4982), "මුලතිව්": (9.2671, 80.8143), "මඩකලපුව": (7.7102, 81.6924),
-    "අම්පාර": (7.2843, 81.6747), "ත්‍රිකුණාමලය": (8.5711, 81.2335), "කුරුණෑගල": (7.4863, 80.3647),
-    "පුත්තලම": (8.0330, 79.8257), "අනුරාධපුරය": (8.3114, 80.4037), "පොළොන්නරුව": (7.9403, 81.0188),
-    "බදුල්ල": (6.9934, 81.0550), "මොණරාගල": (6.8719, 81.3512), "රත්නපුරය": (6.7056, 80.3847), "කෑගල්ල": (7.2513, 80.3464)
-}
-
+# --- Data Tables ---
 RA_NAMES = ["මේෂ", "වෘෂභ", "මිථුන", "කටක", "සිංහ", "කන්යා", "තුලා", "වෘශ්චික", "ධනු", "මකර", "කුම්භ", "මීන"]
 NAK_NAMES = ["අස්විද", "බෙරණ", "කැති", "රෙහෙන", "මුවසිරස", "අද", "පුනාවස", "පුස", "අස්ලිස", "මා", "පුවපල්", "උත්රපල්", "හත", "සිත", "සා", "විසා", "අනුර", "දෙට", "මුල", "පුවසල", "උත්රසල", "සුවණ", "දෙනට", "සියාවස", "පුවපුටුප", "උත්රපුටුප", "රේවතී"]
-# ... (අනෙක් MAP දත්ත කලින් පරිදිම වේ)
+DASHA_LORDS = ["කේතු", "සිකුරු", "රවි", "සඳු", "කුජ", "රාහු", "ගුරු", "ශනි", "බුධ"]
+DASHA_YEARS = [7, 20, 6, 10, 7, 18, 16, 19, 17]
 
-# --- Sidebar Inputs ---
+# --- Sidebar ---
 with st.sidebar:
-    st.header("⚙️ පෞද්ගලික විස්තර")
-    user_name = st.text_input("සම්පූර්ණ නම", placeholder="උදා: සම්පත් උදය බණ්ඩාර")
+    st.header("⚙️ දත්ත ඇතුළත් කරන්න")
+    name = st.text_input("සම්පූර්ණ නම")
     dob = st.date_input("උපන් දිනය", value=datetime(1995, 5, 20), min_value=datetime(1900,1,1), max_value=datetime(2100,12,31))
     t_col = st.columns(3)
     h = t_col[0].number_input("පැය", 0, 23, 10)
     m = t_col[1].number_input("විනාඩි", 0, 59, 30)
-    s = t_col[2].number_input("තත්", 0, 59, 0)
-    city = st.selectbox("උපන් දිස්ත්‍රික්කය", list(DISTRICTS.keys()))
+    u_city = st.selectbox("දිස්ත්‍රික්කය", ["කෑගල්ල", "කොළඹ", "ගම්පහ", "මහනුවර", "ගාල්ල"])
     
-    if st.button("දත්ත මකා අලුතින් අරඹන්න"):
+    if st.button("දත්ත මකන්න"):
         st.rerun()
 
-st.title("☸️ AstroPro SL - Firebase & Multi-API Support")
+# --- Main App ---
+st.title("☸️ AstroPro SL - Visual Horoscope")
 
-if st.button("කේන්ද්‍රය සහ දීර්ඝ පලාපල විග්‍රහය ලබාගන්න"):
-    if not user_name:
-        st.warning("කරුණාකර ඔබගේ නම ඇතුළත් කරන්න.")
+if st.button("කේන්ද්‍රය ගණනය කරන්න"):
+    if not name:
+        st.error("කරුණාකර නම ඇතුළත් කරන්න.")
     else:
         try:
-            lat, lon = DISTRICTS[city]
-            decimal_hour = h + m/60.0 + s/3600.0 - 5.5
-            jd = swe.julday(dob.year, dob.month, dob.day, decimal_hour)
+            # 1. Astrology Calculations (AI රහිතව)
+            jd = swe.julday(dob.year, dob.month, dob.day, h + m/60.0 - 5.5)
             swe.set_sid_mode(swe.SIDM_LAHIRI)
-
-            houses, ascmc = swe.houses_ex(jd, lat, lon, b'P', swe.FLG_SIDEREAL)
+            
+            # ලග්නය සහ ග්‍රහයන්
+            houses, ascmc = swe.houses_ex(jd, 7.2, 80.3, b'P', swe.FLG_SIDEREAL)
             lagna_idx = int(ascmc[0] / 30)
             
-            # ග්‍රහයන් ගණනය
-            planets_def = {"රවි": swe.SUN, "සඳු": swe.MOON, "කුජ": swe.MARS, "බුධ": swe.MERCURY, "ගුරු": swe.JUPITER, "සිකුරු": swe.VENUS, "ශනි": swe.SATURN, "රාහු": swe.MEAN_NODE}
+            planets_def = {"රවි":0, "සඳු":1, "කුජ":4, "බුධ":2, "ගුරු":5, "සිකුරු":3, "ශනි":6, "රාහු":10}
             pos_map = {i: [] for i in range(12)}
-            planet_list = []
-            
             moon_lon = 0
-            for name, pid in planets_def.items():
-                res, _ = swe.calc_ut(jd, pid, swe.FLG_SIDEREAL)
-                if pid == swe.MOON: moon_lon = res[0]
+            
+            for p_name, p_id in planets_def.items():
+                res, _ = swe.calc_ut(jd, p_id, swe.FLG_SIDEREAL)
+                if p_id == 1: moon_lon = res[0]
                 r_idx = int(res[0] / 30)
-                pos_map[r_idx].append(name)
-                planet_list.append(f"{name}:{RA_NAMES[r_idx]}")
-
+                pos_map[r_idx].append(p_name)
+            
             nak_idx = int(moon_lon / (360/27))
+            gana = ["දේව", "මනුෂ්‍ය", "රාක්ෂ"][nak_idx % 3]
+            yoni = ["අශ්ව", "එළු", "සර්ප", "බැල්ලි", "බළල්", "මූෂික", "මී හරක්", "ව්‍යාඝ්‍ර", "මුව", "මුගටි", "වඳුරු", "සිංහ", "එළදෙන", "අලියා"][nak_idx % 14]
+            linga = "පුරුෂ" if (nak_idx % 2 == 0) else "ස්ත්‍රී"
             
-            # UI පෙන්වීම
-            st.subheader(f"👤 නම: {user_name}")
-            col1, col2 = st.columns(2)
-            # ... (කේන්ද්‍ර සටහන සහ පංචාංග පෙන්වන කලින් code කොටස මෙතැනට)
-
-            # AI පලාපල
-            st.divider()
-            summary = f"නම: {user_name}, ලග්නය: {RA_NAMES[lagna_idx]}, නැකත: {NAK_NAMES[nak_idx]}, ග්‍රහයන්: {', '.join(planet_list)}"
+            # Results Display
+            st.subheader(f"👤 නම: {name}")
+            col1, col2 = st.columns([1, 1])
             
-            with st.spinner("දීර්ඝ පලාපල විග්‍රහය සකසමින් පවතියි..."):
-                prompt = f"ඔබ ලාංකීය ජ්‍යොතිෂ්‍ය ප්‍රවීණයෙකි. {summary} යන දත්ත මත පදනම්ව චරිතය, රැකියාව, සෞඛ්‍යය, විවාහය සහ අනාගතය ගැන දීර්ඝ විස්තරයක් සිංහලෙන් කරන්න."
-                prediction = generate_ai_content(prompt)
-                st.markdown(prediction)
+            with col1:
+                st.image(draw_horoscope_chart(pos_map, lagna_idx), caption="සාම්ප්‍රදායික කේන්ද්‍ර සටහන")
+            
+            with col2:
+                st.write(f"**ලග්නය:** {RA_NAMES[lagna_idx]} | **නැකත:** {NAK_NAMES[nak_idx]}")
+                st.write(f"**ගණය:** {gana} | **යෝනිය:** {yoni} | **ලිංගය:** {linga}")
+                st.info(f"උපතේදී මහා දශාව: {DASHA_LORDS[nak_idx % 9]}")
 
+            # Session State එකේ දත්ත තබා ගැනීම (AI එකට යැවීමට)
+            summary = f"නම: {name}, ලග්නය: {RA_NAMES[lagna_idx]}, නැකත: {NAK_NAMES[nak_idx]}, ගණය: {gana}, යෝනිය: {yoni}, ලිංගය: {linga}."
+            st.session_state['astro_summary'] = summary
+            
             # Firebase වෙත දත්ත යැවීම
-            data_to_save = {
-                "name": user_name,
-                "dob": str(dob),
-                "birth_time": f"{h}:{m}:{s}",
-                "city": city,
-                "lagna": RA_NAMES[lagna_idx],
-                "prediction": prediction[:500] + "...", # මුල් කොටස පමණක් සේව් කිරීමට
-                "timestamp": str(datetime.now())
-            }
-            save_to_firebase(data_to_save)
-            st.success("ඔබේ දත්ත සාර්ථකව පද්ධතියේ ගබඩා කරන ලදී.")
+            f_url = st.secrets.get("FIREBASE_DATABASE_URL")
+            if f_url:
+                requests.post(f"{f_url}/logs.json", data=json.dumps({"name": name, "lagna": RA_NAMES[lagna_idx], "time": str(datetime.now())}))
+                st.toast("දත්ත Firebase වෙත යොමු කළා.")
 
         except Exception as e:
             st.error(f"Error: {e}")
+
+# AI බොත්තම (ගණනය කිරීම අවසන් වූ පසු පමණක් දිස්වේ)
+if 'astro_summary' in st.session_state:
+    st.divider()
+    if st.button("🤖 AI දීර්ඝ පලාපල විස්තරය ලබාගන්න"):
+        with st.spinner("Gemini AI පලාපල විශ්ලේෂණය කරමින්..."):
+            prediction = get_ai_prediction(st.session_state['astro_summary'])
+            st.markdown(prediction)
