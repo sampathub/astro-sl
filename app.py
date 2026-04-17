@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="AstroPro Sri Lanka v5", page_icon="☸️", layout="wide")
 
 # Gemini API සකස් කිරීම (ඔබේ API Key එක මෙතැනට ලබා දෙන්න)
-API_KEY = "YOUR_GEMINI_API_KEY" 
+API_KEY = "AQ.Ab8RN6KwUzyZUjMop3GH2VRUV98RWVGUqhFo2ZA4JYhPKfL99A" 
 genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- දත්ත පද්ධති (Data) ---
 DISTRICTS = {
