@@ -59,37 +59,37 @@ def get_planet_bhava(planet_lon, cusps):
                 return i + 1
     return 1
 
-# --- Gana, Yoni, Linga Calculation (Without Vani Thiru) ---
+# --- Gana, Yoni, Linga Calculation (Corrected Yoni Mapping) ---
 def get_nakshatra_details(nak_idx):
-    # Nakshatra details: (Gana, Yoni, Linga)
+    # Nakshatra details: (Gana, Yoni, Linga) - Traditional Vedic Mapping
     nakshatra_data = {
         0: ("දේව ගණ", "අශ්වයා", "පුරුෂ ලිංග"),
-        1: ("මනුෂ්ය ගණ", "මීයා", "ස්ත්‍රී ලිංග"),
+        1: ("මනුෂ්ය ගණ", "ඇතා", "ස්ත්‍රී ලිංග"),
         2: ("රාක්ෂස ගණ", "එළුවා", "ස්ත්‍රී ලිංග"),
         3: ("මනුෂ්ය ගණ", "සර්පයා", "පුරුෂ ලිංග"),
         4: ("දේව ගණ", "සර්පයා", "ස්ත්‍රී ලිංග"),
         5: ("මනුෂ්ය ගණ", "බල්ලා", "පුරුෂ ලිංග"),
         6: ("රාක්ෂස ගණ", "බළලා", "ස්ත්‍රී ලිංග"),
-        7: ("මනුෂ්ය ගණ", "මීයා", "ස්ත්‍රී ලිංග"),
-        8: ("රාක්ෂස ගණ", "මී හරකා", "ස්ත්‍රී ලිංග"),
-        9: ("දේව ගණ", "මී හරකා", "පුරුෂ ලිංග"),
-        10: ("මනුෂ්ය ගණ", "සිංහයා", "පුරුෂ ලිංග"),
-        11: ("මනුෂ්ය ගණ", "කොටියා", "ස්ත්‍රී ලිංග"),
-        12: ("රාක්ෂස ගණ", "මුවා", "ස්ත්‍රී ලිංග"),
-        13: ("දේව ගණ", "බල්ලා", "පුරුෂ ලිංග"),
-        14: ("මනුෂ්ය ගණ", "වඳුරා", "ස්ත්‍රී ලිංග"),
-        15: ("රාක්ෂස ගණ", "අළුත්තා", "පුරුෂ ලිංග"),
+        7: ("මනුෂ්ය ගණ", "එළුවා", "ස්ත්‍රී ලිංග"),
+        8: ("රාක්ෂස ගණ", "බළලා", "ස්ත්‍රී ලිංග"),
+        9: ("දේව ගණ", "මීයා", "පුරුෂ ලිංග"),
+        10: ("මනුෂ්ය ගණ", "මීයා", "පුරුෂ ලිංග"),
+        11: ("මනුෂ්ය ගණ", "ගවයා", "ස්ත්‍රී ලිංග"),
+        12: ("රාක්ෂස ගණ", "මී හරකා", "ස්ත්‍රී ලිංග"),
+        13: ("දේව ගණ", "කොටියා", "පුරුෂ ලිංග"),
+        14: ("මනුෂ්ය ගණ", "මී හරකා", "ස්ත්‍රී ලිංග"),
+        15: ("රාක්ෂස ගණ", "කොටියා", "පුරුෂ ලිංග"),
         16: ("දේව ගණ", "මුවා", "ස්ත්‍රී ලිංග"),
-        17: ("මනුෂ්ය ගණ", "බල්ලා", "ස්ත්‍රී ලිංග"),
-        18: ("රාක්ෂස ගණ", "සර්පයා", "පුරුෂ ලිංග"),
-        19: ("දේව ගණ", "මීයා", "පුරුෂ ලිංග"),
-        20: ("මනුෂ්ය ගණ", "එළුවා", "පුරුෂ ලිංග"),
-        21: ("රාක්ෂස ගණ", "මී හරකා", "ස්ත්‍රී ලිංග"),
+        17: ("මනුෂ්ය ගණ", "මුවා", "ස්ත්‍රී ලිංග"),
+        18: ("රාක්ෂස ගණ", "බල්ලා", "පුරුෂ ලිංග"),
+        19: ("දේව ගණ", "වඳුරා", "පුරුෂ ලිංග"),
+        20: ("මනුෂ්ය ගණ", "මුගටියා", "පුරුෂ ලිංග"),
+        21: ("රාක්ෂස ගණ", "වඳුරා", "ස්ත්‍රී ලිංග"),
         22: ("දේව ගණ", "සිංහයා", "ස්ත්‍රී ලිංග"),
         23: ("මනුෂ්ය ගණ", "අශ්වයා", "පුරුෂ ලිංග"),
-        24: ("රාක්ෂස ගණ", "අශ්වයා", "පුරුෂ ලිංග"),
-        25: ("මනුෂ්ය ගණ", "අලියා", "ස්ත්‍රී ලිංග"),
-        26: ("දේව ගණ", "එළුවා", "ස්ත්‍රී ලිංග")
+        24: ("රාක්ෂස ගණ", "සිංහයා", "පුරුෂ ලිංග"),
+        25: ("මනුෂ්ය ගණ", "ගවයා", "ස්ත්‍රී ලිංග"),
+        26: ("දේව ගණ", "ඇතා", "ස්ත්‍රී ලිංග")
     }
     return nakshatra_data.get(nak_idx, ("නොදනී", "නොදනී", "නොදනී"))
 
@@ -108,7 +108,6 @@ def send_calculation_to_email(user_data, calculation_result, recipient_email="sa
         msg['To'] = recipient_email
         msg['Subject'] = f"AstroPro SL - {user_data['name']} ගේ ජන්ම පත්‍රය"
         
-        # Set proper salutation based on gender
         salutation = "මහතාගේ" if user_data['gender'] == "පිරිමි" else "මහත්මියගේ"
         
         body = f"""
@@ -173,7 +172,6 @@ def save_to_local_file(user_data, calculation_result):
 def get_ai_prediction(summary_data):
     keys = [st.secrets.get("GEMINI_API_KEY_1"), st.secrets.get("GEMINI_API_KEY_2")]
     
-    # Set proper salutation for AI prompt
     salutation = "මහතා" if summary_data.get('gender') == "පිරිමි" else "මහත්මිය"
     
     prompt = f"""
@@ -228,7 +226,6 @@ with st.sidebar:
     
     u_name = st.text_input("නම *", placeholder="ඔබගේ නම ඇතුළත් කරන්න")
     
-    # Gender selection
     u_gender = st.radio("ලිංගය *", ["පිරිමි", "ගැහැණු"], horizontal=True)
     
     u_dob = st.date_input(
@@ -274,11 +271,9 @@ if st.button("🔮 කේන්දරය බලන්න"):
             
             houses, ascmc = swe.houses_ex(jd, lat, lon, b'P', swe.FLG_SIDEREAL)
             
-            # Lagna Rashi
             lagna_rashi = int(ascmc[0] / 30)
             lagna_name = RA_NAMES[lagna_rashi]
             
-            # Planet positions
             planets_def = [
                 ("රවි", swe.SUN), ("සඳු", swe.MOON), ("කුජ", swe.MARS),
                 ("බුධ", swe.MERCURY), ("ගුරු", swe.JUPITER), ("සිකුරු", swe.VENUS),
@@ -296,17 +291,13 @@ if st.button("🔮 කේන්දරය බලන්න"):
                 p_bhava = get_planet_bhava(lon, houses)
                 bhava_map[p_bhava].append(p_name)
             
-            # Nakshatra calculation
             nak_idx = int(moon_lon / (360.0 / 27)) % 27
             nak_name = NAK_NAMES[nak_idx]
             
-            # Get Nakshatra details (without Vani Thiru)
             gana, yoni, linga = get_nakshatra_details(nak_idx)
             
-            # Format bhava details for email
             bhava_text = "\n".join([f"{b} වන භාවය: {', '.join(p) if p else '-'}" for b, p in bhava_map.items()])
             
-            # Prepare calculation result
             calculation_result = {
                 "lagna": lagna_name,
                 "nakshathra": nak_name,
@@ -317,7 +308,6 @@ if st.button("🔮 කේන්දරය බලන්න"):
                 "bhava_map": bhava_map
             }
             
-            # Prepare user data for email
             user_data = {
                 "name": u_name,
                 "gender": u_gender,
@@ -326,10 +316,8 @@ if st.button("🔮 කේන්දරය බලන්න"):
                 "city": u_city
             }
             
-            # Send to email / save to file
             success, message = send_calculation_to_email(user_data, calculation_result)
             
-            # Store in session for display
             st.session_state.astro_data = {
                 "name": u_name,
                 "gender": u_gender,
@@ -346,12 +334,10 @@ if st.button("🔮 කේන්දරය බලන්න"):
             
             st.session_state.calculation_done = True
             
-            # --- Display Results with Proper Salutation ---
             salutation_display = "මහතාගේ" if u_gender == "පිරිමි" else "මහත්මියගේ"
             st.success(f"✨ {u_name} {salutation_display} ජන්ම පත්‍රය ✨")
             st.info(f"📧 {message}")
             
-            # Display all details in organized boxes (without Vani Thiru)
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown(f"<div class='detail-box'><b>⭐ ලග්නය</b><br>{lagna_name}</div>", unsafe_allow_html=True)
@@ -397,7 +383,3 @@ if st.session_state.calculation_done and st.session_state.astro_data:
             st.markdown(f"<div class='report-box'>{ai_response}</div>", unsafe_allow_html=True)
     
     st.caption("© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය")
-
-# --- Show message if form incomplete ---
-if not st.session_state.form_validated and st.session_state.get('calculation_attempted', False):
-    st.warning("කරුණාකර සියලු අවශ්‍ය ක්ෂේත්‍ර පුරවන්න")
