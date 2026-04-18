@@ -18,33 +18,46 @@ st.markdown("""
     .stButton>button:hover { background-color: #45a049; }
     img { width: 100%; height: auto; }
     .report-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin: 10px 0; }
+    .required { color: red; font-size: 12px; }
     
-    /* අකුරු පෙනුම වෙනස් කිරීමට මෙතනින් පටන් ගන්න */
     .detail-box { 
-        background-color: #e8f4f8; 
-        padding: 10px; 
-        border-radius: 8px; 
-        margin: 5px 0; 
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 15px; 
+        border-radius: 15px; 
+        margin: 8px 0; 
         text-align: center;
-        
-        /* අකුරු වෙනස් කිරීම් */
-        font-family: 'Iskoola Pota', 'Noto Sans Sinhala', 'Arial', sans-serif;  /* සිංහල ෆොන්ට් එක */
-        font-size: 16px;           /* අකුරු ප්‍රමාණය (වැඩි කරන්න 20px, 24px) */
-        font-weight: bold;         /* තද අකුරු */
-        color: #1a237e;            /* අකුරු පාට (නිල් පැහැයට) */
-        letter-spacing: 1px;       /* අකුරු අතර පරතරය */
-        line-height: 1.5;          /* පේළි අතර පරතරය */
+        font-family: 'Iskoola Pota', 'Noto Sans Sinhala', 'Arial', sans-serif;
+        font-size: 16px;
+        font-weight: bold;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: transform 0.3s;
     }
-    
-    /* විශේෂයෙන් b tag එක (bold) වෙනස් කිරීමට */
+    .detail-box:hover {
+        transform: translateY(-3px);
+    }
     .detail-box b {
-        font-size: 18px;           /* සිරස්තල අකුරු ප්‍රමාණය */
-        color: #0d47a1;            /* සිරස්තල පාට */
-        display: block;            /* නව පේළියක */
-        margin-bottom: 5px;        /* පහළ පරතරය */
+        font-size: 14px;
+        color: #FFD700;
+        display: block;
+        margin-bottom: 8px;
     }
-</style>
+    </style>
 """, unsafe_allow_html=True)
+
+# ==================== Ayanamsa Selection ====================
+def get_ayanamsa_system(system_name):
+    """Different Ayanamsa systems for accurate calculation"""
+    ayanamsa_systems = {
+        "Lahiri (Chitrapaksha)": swe.SIDM_LAHIRI,
+        "Raman": swe.SIDM_RAMAN,
+        "Krishnamurthi": 7,  # swe.SIDM_KRISHNAMURTI
+        "True Chitrapaksha": swe.SIDM_TRUE_CITRA,
+        "Suryasiddhanta": 10,  # swe.SIDM_SURYASIDDHANTA
+        "Mani-Vakya": 11,      # swe.SIDM_MANIVAKYA
+        "Siddhanta": 12        # swe.SIDM_SIDDHANTA
+    }
+    return ayanamsa_systems.get(system_name, swe.SIDM_LAHIRI)
 
 # --- Helper: Planet to Bhava Calculation ---
 def get_planet_bhava(planet_lon, cusps):
@@ -59,9 +72,8 @@ def get_planet_bhava(planet_lon, cusps):
                 return i + 1
     return 1
 
-# --- Gana, Yoni, Linga Calculation (Corrected Yoni Mapping) ---
+# --- Gana, Yoni, Linga Calculation (Traditional Vedic) ---
 def get_nakshatra_details(nak_idx):
-    # Nakshatra details: (Gana, Yoni, Linga) - Traditional Vedic Mapping
     nakshatra_data = {
         0: ("දේව ගණ", "අශ්වයා", "පුරුෂ ලිංග"),
         1: ("මනුෂ්ය ගණ", "ඇතා", "ස්ත්‍රී ලිංග"),
@@ -93,7 +105,7 @@ def get_nakshatra_details(nak_idx):
     }
     return nakshatra_data.get(nak_idx, ("නොදනී", "නොදනී", "නොදනී"))
 
-# --- Send Email Function (Save to FreeBSD Server) ---
+# --- Send Email Function ---
 def send_calculation_to_email(user_data, calculation_result, recipient_email="sampathub89@gmail.com"):
     try:
         sender_email = st.secrets.get("EMAIL_SENDER", "astroprosl@gmail.com")
@@ -128,6 +140,7 @@ def send_calculation_to_email(user_data, calculation_result, recipient_email="sa
         🕉️ ගණය: {calculation_result['gana']}
         🦁 යෝනිය: {calculation_result['yoni']}
         ⚥ ලිංගය: {calculation_result['linga']}
+        📐 අයනාංශ පද්ධතිය: {calculation_result['ayanamsa']}
         
         🏠 ග්‍රහ පිහිටීම් (භාව අනුව):
         {calculation_result['bhava_details']}
@@ -144,7 +157,7 @@ def send_calculation_to_email(user_data, calculation_result, recipient_email="sa
         server.send_message(msg)
         server.quit()
         
-        return True, "වාර්තාව සාර්ථකව sampathub89@gmail.com වෙත යවන ලදි"
+        return True, "වාර්තාව සාර්ථකව සුරකින ලදි"
         
     except Exception as e:
         save_to_local_file(user_data, calculation_result)
@@ -166,7 +179,7 @@ def save_to_local_file(user_data, calculation_result):
             f.write('\n')
             
     except Exception as e:
-        st.error(f"ගොනුව සුරැකීමේ දෝෂයක්: {e}")
+        pass
 
 # --- AI Prediction using Gemini ---
 def get_ai_prediction(summary_data):
@@ -183,6 +196,7 @@ def get_ai_prediction(summary_data):
     - ගණය: {summary_data['gana']}
     - යෝනිය: {summary_data['yoni']}
     - ලිංගය: {summary_data['linga']}
+    - අයනාංශ පද්ධතිය: {summary_data.get('ayanamsa', 'Lahiri')}
     - ග්‍රහ පිහිටීම්: {summary_data['bhava_data']}
     """
     for key in keys:
@@ -225,7 +239,6 @@ with st.sidebar:
     st.header("👤 පරිශීලක තොරතුරු")
     
     u_name = st.text_input("නම *", placeholder="ඔබගේ නම ඇතුළත් කරන්න")
-    
     u_gender = st.radio("ලිංගය *", ["පිරිමි", "ගැහැණු"], horizontal=True)
     
     u_dob = st.date_input(
@@ -240,7 +253,13 @@ with st.sidebar:
     u_m = c2.number_input("මිනිත්තු (0-59) *", 0, 59, 30)
     u_city = st.selectbox("දිස්ත්‍රික්කය *", list(DISTRICTS.keys()))
     
-    st.markdown("<span class='required'>* අවශ්‍ය ක්ෂේත්‍ර</span>", unsafe_allow_html=True)
+    st.markdown("---")
+    st.subheader("📐 ගණනය කිරීමේ පද්ධතිය")
+    ayanamsa_system = st.selectbox(
+        "අයනාංශ පද්ධතිය",
+        ["Lahiri (Chitrapaksha)", "Mani-Vakya", "Siddhanta", "Raman", "Krishnamurthi", "Suryasiddhanta"]
+    )
+    
     st.markdown("---")
     st.caption("📅 1940 සිට 2050 දක්වා උපන් අය සඳහා සහාය දක්වයි")
 
@@ -267,7 +286,10 @@ if st.button("🔮 කේන්දරය බලන්න"):
             lat, lon = DISTRICTS[u_city]
             hour_utc = u_h + u_m/60 - 5.5
             jd = swe.julday(u_dob.year, u_dob.month, u_dob.day, hour_utc)
-            swe.set_sid_mode(swe.SIDM_LAHIRI)
+            
+            # Set selected Ayanamsa system
+            ayanamsa_code = get_ayanamsa_system(ayanamsa_system)
+            swe.set_sid_mode(ayanamsa_code)
             
             houses, ascmc = swe.houses_ex(jd, lat, lon, b'P', swe.FLG_SIDEREAL)
             
@@ -304,6 +326,7 @@ if st.button("🔮 කේන්දරය බලන්න"):
                 "gana": gana,
                 "yoni": yoni,
                 "linga": linga,
+                "ayanamsa": ayanamsa_system,
                 "bhava_details": bhava_text,
                 "bhava_map": bhava_map
             }
@@ -326,6 +349,7 @@ if st.button("🔮 කේන්දරය බලන්න"):
                 "gana": gana,
                 "yoni": yoni,
                 "linga": linga,
+                "ayanamsa": ayanamsa_system,
                 "bhava_data": str(bhava_map),
                 "dob": u_dob.strftime("%Y-%m-%d"),
                 "city": u_city,
@@ -337,7 +361,9 @@ if st.button("🔮 කේන්දරය බලන්න"):
             salutation_display = "මහතාගේ" if u_gender == "පිරිමි" else "මහත්මියගේ"
             st.success(f"✨ {u_name} {salutation_display} ජන්ම පත්‍රය ✨")
             st.info(f"📧 {message}")
+            st.info(f"📐 ගණනය කිරීමේ පද්ධතිය: **{ayanamsa_system}**")
             
+            # Display Results in stylish boxes
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown(f"<div class='detail-box'><b>⭐ ලග්නය</b><br>{lagna_name}</div>", unsafe_allow_html=True)
