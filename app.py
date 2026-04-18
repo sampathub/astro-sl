@@ -13,14 +13,37 @@ st.set_page_config(page_title="AstroPro SL", page_icon="☸️", layout="centere
 
 st.markdown("""
     <style>
-        [data-testid="stAppViewContainer"] { max-width: 800px; margin: auto; }
-        .stButton>button { width: 100%; border-radius: 5px; background-color: #4CAF50; color: white; }
-        .stButton>button:hover { background-color: #45a049; }
-        img { width: 100%; height: auto; }
-        .report-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin: 10px 0; }
-        .detail-box { background-color: #e8f4f8; padding: 10px; border-radius: 8px; margin: 5px 0; text-align: center; }
-        .required { color: red; font-size: 12px; }
-    </style>
+    [data-testid="stAppViewContainer"] { max-width: 800px; margin: auto; }
+    .stButton>button { width: 100%; border-radius: 5px; background-color: #4CAF50; color: white; }
+    .stButton>button:hover { background-color: #45a049; }
+    img { width: 100%; height: auto; }
+    .report-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin: 10px 0; }
+    
+    /* අකුරු පෙනුම වෙනස් කිරීමට මෙතනින් පටන් ගන්න */
+    .detail-box { 
+        background-color: #e8f4f8; 
+        padding: 10px; 
+        border-radius: 8px; 
+        margin: 5px 0; 
+        text-align: center;
+        
+        /* අකුරු වෙනස් කිරීම් */
+        font-family: 'Iskoola Pota', 'Noto Sans Sinhala', 'Arial', sans-serif;  /* සිංහල ෆොන්ට් එක */
+        font-size: 16px;           /* අකුරු ප්‍රමාණය (වැඩි කරන්න 20px, 24px) */
+        font-weight: bold;         /* තද අකුරු */
+        color: #1a237e;            /* අකුරු පාට (නිල් පැහැයට) */
+        letter-spacing: 1px;       /* අකුරු අතර පරතරය */
+        line-height: 1.5;          /* පේළි අතර පරතරය */
+    }
+    
+    /* විශේෂයෙන් b tag එක (bold) වෙනස් කිරීමට */
+    .detail-box b {
+        font-size: 18px;           /* සිරස්තල අකුරු ප්‍රමාණය */
+        color: #0d47a1;            /* සිරස්තල පාට */
+        display: block;            /* නව පේළියක */
+        margin-bottom: 5px;        /* පහළ පරතරය */
+    }
+</style>
 """, unsafe_allow_html=True)
 
 # --- Helper: Planet to Bhava Calculation ---
