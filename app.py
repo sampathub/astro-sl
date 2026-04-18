@@ -6,7 +6,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import json
-import os
 
 # --- Mobile Optimized Configuration ---
 st.set_page_config(page_title="AstroPro SL", page_icon="☸️", layout="centered")
@@ -47,15 +46,14 @@ st.markdown("""
 
 # ==================== Ayanamsa Selection ====================
 def get_ayanamsa_system(system_name):
-    """Different Ayanamsa systems for accurate calculation"""
     ayanamsa_systems = {
         "Lahiri (Chitrapaksha)": swe.SIDM_LAHIRI,
         "Raman": swe.SIDM_RAMAN,
-        "Krishnamurthi": 7,  # swe.SIDM_KRISHNAMURTI
+        "Krishnamurthi": 7,
         "True Chitrapaksha": swe.SIDM_TRUE_CITRA,
-        "Suryasiddhanta": 10,  # swe.SIDM_SURYASIDDHANTA
-        "Mani-Vakya": 11,      # swe.SIDM_MANIVAKYA
-        "Siddhanta": 12        # swe.SIDM_SIDDHANTA
+        "Suryasiddhanta": 10,
+        "Mani-Vakya": 11,
+        "Siddhanta": 12
     }
     return ayanamsa_systems.get(system_name, swe.SIDM_LAHIRI)
 
@@ -72,36 +70,50 @@ def get_planet_bhava(planet_lon, cusps):
                 return i + 1
     return 1
 
-# --- Gana, Yoni, Linga Calculation (Traditional Vedic) ---
+# --- COMPLETELY CORRECTED Nakshatra Details according to user's table ---
+# අස්විද-පුරුෂ-අශ්ව, බෙරණ-ස්ත්‍රී-ඇත්, කැති-ස්ත්‍රී-එළු, රෙහෙන-පුරුෂ-සර්ප,
+# මුවසිරස-පුරුෂ-සර්ප, අද-පුරුෂ-බල්ල, පුනාවස-පුරුෂ-බල්ල, පුෂ-පුරුෂ-බැටළු,
+# අස්ලිස-ස්ත්‍රී-බළල්, මා-පුරුෂ-මී, පුවපල්-පුරුෂ-මී, උත්රපල්-පුරුෂ-ගව,
+# හත-පුරුෂ-මී, සිත-ස්ත්‍රී-ව්‍යාඝ්‍ර, සා-ස්ත්‍රී-ව්‍යාඝ්‍ර, විසා-පුරුෂ-ව්‍යාඝ්‍ර,
+# අනුර-පුරුෂ-මුව, දෙට-පුරුෂ-මුව, මුල-පුරුෂ-සුනඛ, පුවසල-පුරුෂ-වඳුරු,
+# උත්රසල-පුරුෂ-මුගටි, සවණ-පුරුෂ-වඳුරු, දෙනට-ස්ත්‍රී-සිංහ, සියාවස-පුරුෂ-අශ්ව,
+# පුවපුටුප-පුරුෂ-සිංහ, උත්රපුටුප-පුරුෂ-ගව, රේවතී-පුරුෂ-ඇතා
+
 def get_nakshatra_details(nak_idx):
+    """
+    නැකත අනුව ගණය, යෝනිය, ලිංගය ලබා ගැනීම
+    සම්පූර්ණයෙන්ම නිවැරදි කර ඇත - user දුන් වගුව අනුව
+    """
     nakshatra_data = {
-        0: ("දේව ගණ", "අශ්වයා", "පුරුෂ ලිංග"),
-        1: ("මනුෂ්ය ගණ", "ඇතා", "ස්ත්‍රී ලිංග"),
-        2: ("රාක්ෂස ගණ", "එළුවා", "ස්ත්‍රී ලිංග"),
-        3: ("මනුෂ්ය ගණ", "සර්පයා", "පුරුෂ ලිංග"),
-        4: ("දේව ගණ", "සර්පයා", "ස්ත්‍රී ලිංග"),
-        5: ("මනුෂ්ය ගණ", "බල්ලා", "පුරුෂ ලිංග"),
-        6: ("රාක්ෂස ගණ", "බළලා", "ස්ත්‍රී ලිංග"),
-        7: ("මනුෂ්ය ගණ", "එළුවා", "ස්ත්‍රී ලිංග"),
-        8: ("රාක්ෂස ගණ", "බළලා", "ස්ත්‍රී ලිංග"),
-        9: ("දේව ගණ", "මීයා", "පුරුෂ ලිංග"),
-        10: ("මනුෂ්ය ගණ", "මීයා", "පුරුෂ ලිංග"),
-        11: ("මනුෂ්ය ගණ", "ගවයා", "ස්ත්‍රී ලිංග"),
-        12: ("රාක්ෂස ගණ", "මී හරකා", "ස්ත්‍රී ලිංග"),
-        13: ("දේව ගණ", "කොටියා", "පුරුෂ ලිංග"),
-        14: ("මනුෂ්ය ගණ", "මී හරකා", "ස්ත්‍රී ලිංග"),
-        15: ("රාක්ෂස ගණ", "කොටියා", "පුරුෂ ලිංග"),
-        16: ("දේව ගණ", "මුවා", "ස්ත්‍රී ලිංග"),
-        17: ("මනුෂ්ය ගණ", "මුවා", "ස්ත්‍රී ලිංග"),
-        18: ("රාක්ෂස ගණ", "බල්ලා", "පුරුෂ ලිංග"),
-        19: ("දේව ගණ", "වඳුරා", "පුරුෂ ලිංග"),
-        20: ("මනුෂ්ය ගණ", "මුගටියා", "පුරුෂ ලිංග"),
-        21: ("රාක්ෂස ගණ", "වඳුරා", "ස්ත්‍රී ලිංග"),
-        22: ("දේව ගණ", "සිංහයා", "ස්ත්‍රී ලිංග"),
-        23: ("මනුෂ්ය ගණ", "අශ්වයා", "පුරුෂ ලිංග"),
-        24: ("රාක්ෂස ගණ", "සිංහයා", "පුරුෂ ලිංග"),
-        25: ("මනුෂ්ය ගණ", "ගවයා", "ස්ත්‍රී ලිංග"),
-        26: ("දේව ගණ", "ඇතා", "ස්ත්‍රී ලිංග")
+        # නැකත: (ගණය, යෝනිය, ලිංගය)
+        # ගණය තීරණය කර ඇත්තේ traditional වගුව අනුව
+        0: ("දේව ගණ", "අශ්වයා", "පුරුෂ ලිංග"),      # අස්විද
+        1: ("මනුෂ්ය ගණ", "ඇතා", "ස්ත්‍රී ලිංග"),        # බෙරණ
+        2: ("රාක්ෂස ගණ", "එළුවා", "ස්ත්‍රී ලිංග"),      # කැති
+        3: ("මනුෂ්ය ගණ", "සර්පයා", "පුරුෂ ලිංග"),      # රෙහෙන
+        4: ("දේව ගණ", "සර්පයා", "පුරුෂ ලිංග"),         # මුවසිරස
+        5: ("මනුෂ්ය ගණ", "බල්ලා", "පුරුෂ ලිංග"),       # අද
+        6: ("රාක්ෂස ගණ", "බල්ලා", "පුරුෂ ලිංග"),       # පුනාවස
+        7: ("දේව ගණ", "බැටළුවා", "පුරුෂ ලිංග"),        # පුෂ
+        8: ("රාක්ෂස ගණ", "බළලා", "ස්ත්‍රී ලිංග"),       # අස්ලිස
+        9: ("රාක්ෂස ගණ", "මීයා", "පුරුෂ ලිංග"),         # මා
+        10: ("මනුෂ්ය ගණ", "මීයා", "පුරුෂ ලිංග"),       # පුවපල්
+        11: ("මනුෂ්ය ගණ", "ගවයා", "පුරුෂ ලිංග"),       # උත්රපල්
+        12: ("දේව ගණ", "මීයා", "පුරුෂ ලිංග"),           # හත
+        13: ("රාක්ෂස ගණ", "ව්‍යාඝ්‍රයා", "ස්ත්‍රී ලිංග"), # සිත
+        14: ("දේව ගණ", "ව්‍යාඝ්‍රයා", "ස්ත්‍රී ලිංග"),   # සා
+        15: ("රාක්ෂස ගණ", "ව්‍යාඝ්‍රයා", "පුරුෂ ලිංග"), # විසා
+        16: ("දේව ගණ", "මුවා", "පුරුෂ ලිංග"),           # අනුර
+        17: ("රාක්ෂස ගණ", "මුවා", "පුරුෂ ලිංග"),        # දෙට
+        18: ("රාක්ෂස ගණ", "සුනඛයා", "පුරුෂ ලිංග"),     # මුල
+        19: ("මනුෂ්ය ගණ", "වඳුරා", "පුරුෂ ලිංග"),       # පුවසල
+        20: ("මනුෂ්ය ගණ", "මුගටියා", "පුරුෂ ලිංග"),    # උත්රසල
+        21: ("දේව ගණ", "වඳුරා", "පුරුෂ ලිංග"),          # සවණ (සුවණ)
+        22: ("රාක්ෂස ගණ", "සිංහයා", "ස්ත්‍රී ලිංග"),    # දෙනට
+        23: ("රාක්ෂස ගණ", "අශ්වයා", "පුරුෂ ලිංග"),     # සියාවස
+        24: ("මනුෂ්ය ගණ", "සිංහයා", "පුරුෂ ලිංග"),     # පුවපුටුප
+        25: ("මනුෂ්ය ගණ", "ගවයා", "පුරුෂ ලිංග"),       # උත්රපුටුප
+        26: ("දේව ගණ", "ඇතා", "පුරුෂ ලිංග")             # රේවතී
     }
     return nakshatra_data.get(nak_idx, ("නොදනී", "නොදනී", "නොදනී"))
 
@@ -177,8 +189,7 @@ def save_to_local_file(user_data, calculation_result):
         with open("astro_calculations_log.json", 'a', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False)
             f.write('\n')
-            
-    except Exception as e:
+    except Exception:
         pass
 
 # --- AI Prediction using Gemini ---
@@ -287,7 +298,6 @@ if st.button("🔮 කේන්දරය බලන්න"):
             hour_utc = u_h + u_m/60 - 5.5
             jd = swe.julday(u_dob.year, u_dob.month, u_dob.day, hour_utc)
             
-            # Set selected Ayanamsa system
             ayanamsa_code = get_ayanamsa_system(ayanamsa_system)
             swe.set_sid_mode(ayanamsa_code)
             
@@ -316,6 +326,7 @@ if st.button("🔮 කේන්දරය බලන්න"):
             nak_idx = int(moon_lon / (360.0 / 27)) % 27
             nak_name = NAK_NAMES[nak_idx]
             
+            # Get corrected nakshatra details
             gana, yoni, linga = get_nakshatra_details(nak_idx)
             
             bhava_text = "\n".join([f"{b} වන භාවය: {', '.join(p) if p else '-'}" for b, p in bhava_map.items()])
@@ -363,7 +374,7 @@ if st.button("🔮 කේන්දරය බලන්න"):
             st.info(f"📧 {message}")
             st.info(f"📐 ගණනය කිරීමේ පද්ධතිය: **{ayanamsa_system}**")
             
-            # Display Results in stylish boxes
+            # Display Results
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown(f"<div class='detail-box'><b>⭐ ලග්නය</b><br>{lagna_name}</div>", unsafe_allow_html=True)
