@@ -339,7 +339,7 @@ def get_ai_astrology_report(calc_data):
     for i, api_key in enumerate(api_keys):
         try:
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(prompt)
             if response and response.text:
                 st.session_state.api_status = "success"
