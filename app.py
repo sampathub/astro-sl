@@ -1,5 +1,5 @@
 import streamlit as st
-import pyswisseph as swe
+import swisseph as swe
 from datetime import datetime
 import google.generativeai as genai
 import requests
@@ -170,6 +170,8 @@ if 'ai_report' not in st.session_state:
     st.session_state.ai_report = None
 if 'show_calculation' not in st.session_state:
     st.session_state.show_calculation = False
+if 'show_admin' not in st.session_state:
+    st.session_state.show_admin = False
 
 # ==================== Firebase Functions ====================
 def save_calculation_to_firebase(calc_data):
@@ -185,7 +187,7 @@ def save_calculation_to_firebase(calc_data):
         # Also save to admin's view
         admin_data = {
             **calc_data,
-            'user_ip': st.get_option('server.address', 'unknown')
+            'user_ip': 'web_user'
         }
         requests.post(f"{FIREBASE_URL}/admin_calculations.json", json=admin_data)
         
@@ -336,7 +338,11 @@ def get_ai_prediction(calc_data):
     """Get AI prediction using Gemini"""
     try:
         # Try to get API key from secrets
-        api_key = st.secrets.get("GEMINI_API_KEY")
+        try:
+            api_key = st.secrets.get("GEMINI_API_KEY")
+        except:
+            api_key = None
+            
         if not api_key:
             return generate_fallback_prediction(calc_data)
         
@@ -425,7 +431,7 @@ def admin_panel():
     st.markdown('<div class="main-header"><h1>👑 පරිපාලක පුවරුව</h1><p>Admin Dashboard</p></div>', unsafe_allow_html=True)
     
     # Verify admin email
-    admin_email = st.text_input("පරිපාලක විද්‍යුත් තැපෑල ඇතුළත් කරන්න")
+    admin_email = st.text_input("පරිපාලක විද්‍යුත් තැපෑල ඇතුළත් කරන්න", type="password")
     
     if admin_email:
         if verify_admin(admin_email):
@@ -436,7 +442,14 @@ def admin_panel():
             if calculations:
                 st.subheader(f"📊 සියලු ගණනය කිරීම් ({len(calculations)})")
                 
+                # Convert to list and reverse for newest first
+                calc_list = []
                 for calc_id, calc in calculations.items():
+                    calc_list.append({"id": calc_id, "data": calc})
+                calc_list.reverse()
+                
+                for item in calc_list[:50]:  # Show last 50
+                    calc = item["data"]
                     with st.expander(f"📅 {calc.get('timestamp', '')[:10]} - {calc.get('name', '')} ({calc.get('lagna', '')})"):
                         col1, col2 = st.columns(2)
                         with col1:
