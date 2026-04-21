@@ -1,3 +1,12 @@
+"""
+=================================================================================
+ASTROPRO SL - COMPLETE SYSTEM WITH ADMIN LOGIN & RECORDS MANAGEMENT
+=================================================================================
+This is the complete, ready-to-use Streamlit application.
+No changes needed - copy and run directly.
+=================================================================================
+"""
+
 import streamlit as st
 import swisseph as swe
 from datetime import datetime
@@ -9,7 +18,7 @@ import base64
 import time
 import os
 
-# ==================== Page Configuration ====================
+# ==================== PAGE CONFIGURATION ====================
 st.set_page_config(
     page_title="AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය",
     page_icon="🔮",
@@ -17,7 +26,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== Custom CSS ====================
+# ==================== CUSTOM CSS ====================
 st.markdown("""
 <style>
     .main-header {
@@ -65,6 +74,24 @@ st.markdown("""
     
     .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; margin-top: 30px; }
     
+    .admin-header {
+        text-align: center;
+        padding: 20px;
+        background: linear-gradient(135deg, #e94560 0%, #0f3460 100%);
+        border-radius: 15px;
+        color: white;
+        margin-bottom: 20px;
+    }
+    .record-card {
+        background: #1a1a2e;
+        padding: 15px;
+        border-radius: 10px;
+        margin: 10px 0;
+        border-left: 4px solid #e94560;
+    }
+    .record-card h4 { margin: 0 0 10px 0; color: #e94560; }
+    .record-card p { margin: 5px 0; font-size: 14px; }
+    
     @media (max-width: 768px) {
         .detail-card .value { font-size: 14px; }
         .result-card { padding: 15px; }
@@ -72,7 +99,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== Session State ====================
+# ==================== SESSION STATE INITIALIZATION ====================
 if 'calculation_result' not in st.session_state:
     st.session_state.calculation_result = None
 if 'ai_report' not in st.session_state:
@@ -83,23 +110,29 @@ if 'show_admin' not in st.session_state:
     st.session_state.show_admin = False
 if 'api_status' not in st.session_state:
     st.session_state.api_status = None
+if 'admin_authenticated' not in st.session_state:
+    st.session_state.admin_authenticated = False
 
-# ==================== Firebase Configuration ====================
+# ==================== FIREBASE CONFIGURATION ====================
 FIREBASE_URL = "https://stationary-f85f6-default-rtdb.firebaseio.com"
 
 def save_calculation_to_firebase(calc_data):
+    """Save calculation to Firebase"""
     try:
         calc_id = str(uuid.uuid4())
         calc_data['calc_id'] = calc_id
         calc_data['timestamp'] = datetime.now().isoformat()
+        calc_data['timestamp_readable'] = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
         
         requests.post(f"{FIREBASE_URL}/public_calculations.json", json=calc_data)
         requests.post(f"{FIREBASE_URL}/admin_calculations.json", json=calc_data)
         return True
-    except:
+    except Exception as e:
+        print(f"Firebase save error: {e}")
         return False
 
-def get_admin_calculations():
+def get_all_calculations():
+    """Get all saved calculations from Firebase"""
     try:
         response = requests.get(f"{FIREBASE_URL}/admin_calculations.json")
         if response.status_code == 200:
@@ -107,10 +140,19 @@ def get_admin_calculations():
             if data:
                 return data
         return {}
-    except:
+    except Exception as e:
+        print(f"Firebase read error: {e}")
         return {}
 
-# ==================== Astrology Calculation Functions ====================
+def delete_calculation(calc_id):
+    """Delete a calculation from Firebase"""
+    try:
+        response = requests.delete(f"{FIREBASE_URL}/admin_calculations/{calc_id}.json")
+        return response.status_code == 200
+    except:
+        return False
+
+# ==================== ASTROLOGY CALCULATION FUNCTIONS ====================
 def get_ayanamsa_system(system_name):
     ayanamsa_systems = {
         "Lahiri (Chitrapaksha)": swe.SIDM_LAHIRI,
@@ -175,7 +217,7 @@ DISTRICTS = {
 RA_NAMES = ["මේෂ", "වෘෂභ", "මිථුන", "කටක", "සිංහ", "කන්‍යා", "තුලා", "වෘශ්චික", "ධනු", "මකර", "කුම්භ", "මීන"]
 NAK_NAMES = ["අස්විද", "බෙරණ", "කැති", "රෙහෙන", "මුවසිරස", "අද", "පුනාවස", "පුස", "අස්ලිස", "මා", "පුවපල්", "උත්රපල්", "හත", "සිත", "සා", "විසා", "අනුර", "දෙට", "මුල", "පුවසල", "උත්රසල", "සුවණ", "දෙනට", "සියාවස", "පුවපුටුප", "උත්රපුටුප", "රේවතී"]
 
-# ==================== Calculation Function ====================
+# ==================== CALCULATION FUNCTION ====================
 def perform_calculation(name, gender, dob, hour, minute, city, ayanamsa):
     try:
         lat, lon = DISTRICTS[city]
@@ -246,7 +288,7 @@ def perform_calculation(name, gender, dob, hour, minute, city, ayanamsa):
     except Exception as e:
         return None, str(e)
 
-# ==================== AI Prediction with Gemini API ====================
+# ==================== AI PREDICTION WITH GEMINI API ====================
 def get_available_api_keys():
     """Get all available Gemini API keys from different sources"""
     api_keys = []
@@ -275,13 +317,11 @@ def get_ai_astrology_report(calc_data):
     
     salutation = "මහතා" if calc_data.get('gender') == "පිරිමි" else "මහත්මිය"
     
-    # Prepare planet positions text
     planet_list = []
     for planet, bhava in calc_data.get('planet_bhava_details', {}).items():
         planet_list.append(f"   • {planet} - {bhava} වන භාවයේ")
     planet_text = "\n".join(planet_list)
     
-    # Format bhava details
     bhava_list = []
     for bhava, planets in calc_data.get('bhava_map', {}).items():
         if planets:
@@ -335,7 +375,6 @@ def get_ai_astrology_report(calc_data):
 
 වාර්තාව ඉතා විස්තරාත්මකව, වෘත්තීයව සහ ශ්‍රී ලාංකීය ජ්‍යොතිෂ සම්ප්‍රදායට අනුකූලව ලියන්න."""
 
-    # Try each API key
     for i, api_key in enumerate(api_keys):
         try:
             genai.configure(api_key=api_key)
@@ -364,13 +403,11 @@ def generate_detailed_report_without_ai(calc_data, reason=""):
     
     salutation = "මහතා" if calc_data.get('gender') == "පිරිමි" else "මහත්මිය"
     
-    # Prepare planet positions text
     planet_list = []
     for planet, bhava in calc_data.get('planet_bhava_details', {}).items():
         planet_list.append(f"   • {planet} - {bhava} වන භාවයේ")
     planet_text = "\n".join(planet_list)
     
-    # Determine good professions based on lagna
     profession_suggestions = {
         "මේෂ": "හමුදාව, පොලිසිය, ඉංජිනේරු, ශල්ය වෛද්‍ය, ක්‍රීඩා",
         "වෘෂභ": "බැංකු, මූල්ය, කලාව, සංගීතය, ආහාරපාන කර්මාන්තය",
@@ -387,7 +424,6 @@ def generate_detailed_report_without_ai(calc_data, reason=""):
     }
     professions = profession_suggestions.get(calc_data.get('lagna', ''), "විවිධ ක්ෂේත්‍ර")
     
-    # Remedies based on nakshatra lord
     remedy_suggestions = {
         "රවි": "ඉරිදා දිනවල තැඹිලි පැහැති මල් පූජා කිරීම",
         "සඳු": "සඳුදා දිනවල සුදු පැහැති ආහාර දන් දීම",
@@ -414,8 +450,7 @@ def generate_detailed_report_without_ai(calc_data, reason=""):
     <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🌙 උපන් නැකත</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('nakshathra')} (අධිපති: {calc_data.get('nak_lord')})</td></tr>
     <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🕉️ ගණය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('gana')}</td></tr>
     <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🦁 යෝනිය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('yoni')}</td></tr>
-    <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>⚥ ජන්ම ලිංගය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('linga')}</td>
-    </tr>
+    <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>⚥ ජන්ම ලිංගය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('linga')}</td></tr>
 </table>
 
 <h3>🪐 2. ග්‍රහ පිහිටීම් (භාව අනුව)</h3>
@@ -463,51 +498,203 @@ def generate_detailed_report_without_ai(calc_data, reason=""):
     
     return report
 
-# ==================== Admin Panel ====================
+# ==================== ADMIN PANEL WITH AUTHENTICATION ====================
 def admin_panel():
-    st.markdown('<div class="main-header"><h1>👑 පරිපාලක පුවරුව</h1><p>Admin Dashboard</p></div>', unsafe_allow_html=True)
+    """Admin panel with authentication - only sampathub89@gmail.com can access"""
     
-    admin_email = st.text_input("පරිපාලක විද්‍යුත් තැපෑල ඇතුළත් කරන්න", type="password")
+    st.markdown('<div class="admin-header"><h1>👑 පරිපාලක පුවරුව</h1><p>Admin Dashboard - Records Management</p></div>', unsafe_allow_html=True)
     
-    if admin_email == "sampathub89@gmail.com":
-        st.success("✅ සත්‍යාපනය සාර්ථකයි!")
+    # Admin Login Section
+    if not st.session_state.admin_authenticated:
+        st.markdown("### 🔐 පරිපාලක පිවිසුම")
+        st.markdown("කරුණාකර ඔබගේ පරිපාලක විද්‍යුත් තැපෑල ඇතුළත් කරන්න.")
         
-        st.subheader("🔑 API තත්ත්වය")
-        api_keys = get_available_api_keys()
-        if api_keys:
-            st.success(f"✅ Gemini API යතුරු {len(api_keys)}ක් හමු විය")
-        else:
-            st.warning("⚠️ Gemini API යතුරක් හමු නොවීය")
-            st.info("API Key එකක් සැකසීමට: https://aistudio.google.com/app/apikey වෙත ගොස් API key එකක් ලබා ගන්න")
+        admin_email_input = st.text_input("විද්‍යුත් තැපෑල", placeholder="admin@example.com", type="password")
         
-        calculations = get_admin_calculations()
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            login_btn = st.button("🔐 පිවිසෙන්න", use_container_width=True)
         
-        if calculations:
-            st.subheader(f"📊 සියලු ගණනය කිරීම් ({len(calculations)})")
+        if login_btn:
+            if admin_email_input.strip().lower() == "sampathub89@gmail.com":
+                st.session_state.admin_authenticated = True
+                st.success("✅ සත්‍යාපනය සාර්ථකයි! පරිපාලක පුවරුවට සාදරයෙන් පිළිගනිමු.")
+                st.rerun()
+            elif admin_email_input:
+                st.error("❌ වලංගු පරිපාලක විද්‍යුත් තැපෑලක් නොවේ. ප්‍රවේශය ප්‍රතික්ෂේප කරන ලදී.")
+        
+        st.markdown("---")
+        st.info("💡 **සටහන:** මෙම පිවිසුම පරිපාලකයින් සඳහා පමණි. ඔබ පරිපාලකයෙකු නොවන්නේ නම් කරුණාකර පිටුවට ආපසු යන්න.")
+        
+        if st.button("🏠 මුල් පිටුවට යන්න", use_container_width=True):
+            st.session_state.show_admin = False
+            st.rerun()
+        
+        return
+    
+    # ==================== AUTHENTICATED ADMIN CONTENT ====================
+    
+    # Logout button at top
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        if st.button("🚪 ඉවත්වන්න (Logout)", use_container_width=True):
+            st.session_state.admin_authenticated = False
+            st.session_state.show_admin = False
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # API Status Section
+    st.subheader("🔑 API තත්ත්වය")
+    api_keys = get_available_api_keys()
+    if api_keys:
+        st.success(f"✅ Gemini API යතුරු {len(api_keys)}ක් හමු විය")
+    else:
+        st.warning("⚠️ Gemini API යතුරක් හමු නොවීය")
+        st.info("API Key එකක් සැකසීමට: https://aistudio.google.com/app/apikey වෙත ගොස් API key එකක් ලබා ගන්න")
+    
+    st.markdown("---")
+    
+    # Get all calculations from Firebase
+    calculations = get_all_calculations()
+    
+    # Statistics
+    if calculations:
+        total_records = len(calculations)
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("📊 සම්පූර්ණ වාර්තා", total_records)
+        with col2:
+            males = sum(1 for c in calculations.values() if c.get('gender') == 'පිරිමි')
+            females = sum(1 for c in calculations.values() if c.get('gender') == 'ගැහැණු')
+            st.metric("👨 පිරිමි", males)
+        with col3:
+            st.metric("👩 ගැහැණු", females)
+        with col4:
+            districts = set(c.get('city') for c in calculations.values() if c.get('city'))
+            st.metric("📍 දිස්ත්‍රික්ක", len(districts))
+        
+        st.markdown("---")
+        
+        # Search and Filter
+        st.subheader("🔍 වාර්තා සෙවීම")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            search_name = st.text_input("නම අනුව සෙවීම", placeholder="නම ඇතුළත් කරන්න...")
+        with col2:
+            search_lagna = st.selectbox("ලග්නය අනුව පෙරීම", ["සියල්ල"] + RA_NAMES)
+        with col3:
+            sort_by = st.selectbox("පෙළගැස්ම", ["නවතම පළමුව", "පැරණිතම පළමුව", "නම අනුව (A-Z)", "නම අනුව (Z-A)"])
+        
+        # Prepare records list
+        records_list = []
+        for calc_id, calc in calculations.items():
+            records_list.append({"id": calc_id, "data": calc})
+        
+        # Filter by name
+        if search_name:
+            records_list = [r for r in records_list if search_name.lower() in r['data'].get('name', '').lower()]
+        
+        # Filter by lagna
+        if search_lagna != "සියල්ල":
+            records_list = [r for r in records_list if r['data'].get('lagna') == search_lagna]
+        
+        # Sort
+        if sort_by == "නවතම පළමුව":
+            records_list.sort(key=lambda x: x['data'].get('timestamp', ''), reverse=True)
+        elif sort_by == "පැරණිතම පළමුව":
+            records_list.sort(key=lambda x: x['data'].get('timestamp', ''))
+        elif sort_by == "නම අනුව (A-Z)":
+            records_list.sort(key=lambda x: x['data'].get('name', ''))
+        elif sort_by == "නම අනුව (Z-A)":
+            records_list.sort(key=lambda x: x['data'].get('name', ''), reverse=True)
+        
+        st.info(f"📋 පෙන්වන වාර්තා: {len(records_list)} / {total_records}")
+        
+        # Display records
+        st.subheader("📜 සියලු ගණනය කිරීම්")
+        
+        for idx, item in enumerate(records_list):
+            calc = item["data"]
             
-            calc_list = []
-            for calc_id, calc in calculations.items():
-                calc_list.append({"id": calc_id, "data": calc})
-            calc_list.reverse()
+            timestamp = calc.get('timestamp_readable', calc.get('timestamp', ''))[:19]
+            if len(timestamp) > 19:
+                timestamp = timestamp[:19]
             
-            for item in calc_list[:50]:
-                calc = item["data"]
-                with st.expander(f"📅 {calc.get('timestamp', '')[:10]} - {calc.get('name', '')} ({calc.get('lagna', '')})"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**නම:** {calc.get('name', '')}")
-                        st.write(f"**ලිංගය:** {calc.get('gender', '')}")
-                        st.write(f"**උපන් දිනය:** {calc.get('dob', '')}")
-                    with col2:
-                        st.write(f"**ලග්නය:** {calc.get('lagna', '')}")
-                        st.write(f"**නැකත:** {calc.get('nakshathra', '')}")
-                        st.write(f"**යෝනිය:** {calc.get('yoni', '')}")
-        else:
-            st.info("තවමත් ගණනය කිරීම් නොමැත")
-    elif admin_email:
-        st.error("වලංගු පරිපාලක විද්‍යුත් තැපෑලක් නොවේ")
+            with st.expander(f"📅 {timestamp} - {calc.get('name', '')} ({calc.get('lagna', '')} ලග්නය)"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"""
+                    <div class="record-card">
+                        <h4>👤 පුද්ගලික තොරතුරු</h4>
+                        <p><strong>නම:</strong> {calc.get('name', '')}</p>
+                        <p><strong>ලිංගය:</strong> {calc.get('gender', '')}</p>
+                        <p><strong>උපන් දිනය:</strong> {calc.get('dob', '')}</p>
+                        <p><strong>උපන් වේලාව:</strong> {calc.get('time', '')}</p>
+                        <p><strong>දිස්ත්‍රික්කය:</strong> {calc.get('city', '')}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="record-card">
+                        <h4>⭐ ජ්‍යොතිෂ ගණනය කිරීම්</h4>
+                        <p><strong>ලග්නය:</strong> {calc.get('lagna', '')}</p>
+                        <p><strong>ලග්නාධිපති:</strong> {calc.get('lagna_lord', '')}</p>
+                        <p><strong>නැකත:</strong> {calc.get('nakshathra', '')}</p>
+                        <p><strong>නැකත් අධිපති:</strong> {calc.get('nak_lord', '')}</p>
+                        <p><strong>ගණය:</strong> {calc.get('gana', '')}</p>
+                        <p><strong>යෝනිය:</strong> {calc.get('yoni', '')}</p>
+                        <p><strong>ජන්ම ලිංගය:</strong> {calc.get('linga', '')}</p>
+                        <p><strong>අයනාංශය:</strong> {calc.get('ayanamsa', '')}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Planet positions
+                st.markdown("#### 🪐 ග්‍රහ පිහිටීම්")
+                bhava_map = calc.get('bhava_map', {})
+                if bhava_map:
+                    cols = st.columns(4)
+                    col_idx = 0
+                    for bhava, planets in bhava_map.items():
+                        with cols[col_idx % 4]:
+                            if planets:
+                                st.markdown(f"**{bhava} වන භාවය:** {', '.join(planets)}")
+                            else:
+                                st.markdown(f"**{bhava} වන භාවය:** -")
+                        col_idx += 1
+                
+                # Delete button
+                col1, col2, col3 = st.columns([1, 2, 1])
+                with col2:
+                    if st.button(f"🗑️ මෙම වාර්තාව මකන්න", key=f"delete_{item['id']}", use_container_width=True):
+                        if delete_calculation(item['id']):
+                            st.success("✅ වාර්තාව සාර්ථකව මකා දමන ලදී!")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error("❌ වාර්තාව මැකීම අසාර්ථක විය")
+                
+                st.markdown("---")
+    else:
+        st.info("📭 තවමත් ගණනය කිරීම් නොමැත. පරිශීලකයින් විසින් කේන්දර ගණනය කිරීම් සිදු කළ පසු ඒවා මෙහි දිස්වනු ඇත.")
+    
+    # Export option
+    if calculations:
+        st.markdown("---")
+        st.subheader("📤 වාර්තා අපනයනය")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📋 JSON ලෙස අපනයනය කරන්න", use_container_width=True):
+                json_str = json.dumps(calculations, ensure_ascii=False, indent=2)
+                b64 = base64.b64encode(json_str.encode()).decode()
+                href = f'<a href="data:text/json;base64,{b64}" download="astropro_records.json"><button style="background-color:#4CAF50;color:white;padding:10px;border:none;border-radius:5px;cursor:pointer;width:100%;">📥 JSON බාගන්න</button></a>'
+                st.markdown(href, unsafe_allow_html=True)
 
-# ==================== Main Calculation Form ====================
+# ==================== MAIN CALCULATION FORM ====================
 def calculation_form():
     st.markdown('<div class="main-header"><h1>🔮 AstroPro SL</h1><p>ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය</p></div>', unsafe_allow_html=True)
     
@@ -555,7 +742,7 @@ def calculation_form():
                     else:
                         st.error(f"දෝෂයක්: {error}")
 
-# ==================== Display Results ====================
+# ==================== DISPLAY RESULTS ====================
 def display_results():
     if st.session_state.calculation_result and st.session_state.show_calculation:
         result = st.session_state.calculation_result
@@ -699,17 +886,20 @@ def display_results():
             st.session_state.ai_report = None
             st.rerun()
 
-# ==================== Main App ====================
+# ==================== MAIN APP ====================
 def main():
     with st.sidebar:
         st.markdown("---")
         if st.button("👑 පරිපාලක පුවරුව", use_container_width=True):
             st.session_state.show_admin = not st.session_state.get('show_admin', False)
+            if not st.session_state.show_admin:
+                st.session_state.admin_authenticated = False
         if st.button("🏠 මුල් පිටුව", use_container_width=True):
             st.session_state.show_admin = False
             st.session_state.show_calculation = False
             st.session_state.calculation_result = None
             st.session_state.ai_report = None
+            st.session_state.admin_authenticated = False
             st.rerun()
     
     if st.session_state.get('show_admin', False):
