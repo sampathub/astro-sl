@@ -2,23 +2,24 @@ import streamlit as st
 import swisseph as swe
 from datetime import datetime
 import google.generativeai as genai
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
 import json
 import requests
 import hashlib
 import uuid
 from io import BytesIO
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.lib import colors
 import base64
 import re
+
+# Try to import reportlab, but provide fallback
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
 
 # ==================== Firebase Configuration ====================
 FIREBASE_URL = "https://stationary-f85f6-default-rtdb.firebaseio.com"
@@ -215,6 +216,10 @@ if 'calculations' not in st.session_state:
     st.session_state.calculations = []
 if 'selected_calc' not in st.session_state:
     st.session_state.selected_calc = None
+if 'current_calc' not in st.session_state:
+    st.session_state.current_calc = None
+if 'current_ai_report' not in st.session_state:
+    st.session_state.current_ai_report = None
 
 # ==================== Firebase Functions ====================
 def firebase_save_data(path, data):
@@ -223,7 +228,6 @@ def firebase_save_data(path, data):
         response = requests.put(f"{FIREBASE_URL}/{path}.json", json=data)
         return response.status_code == 200
     except Exception as e:
-        st.error(f"Firebase error: {e}")
         return False
 
 def firebase_get_data(path):
@@ -372,7 +376,14 @@ NAK_NAMES = ["අස්විද", "බෙරණ", "කැති", "රෙහෙ
 
 # ==================== AI Prediction Function ====================
 def get_ai_prediction(summary_data):
-    keys = [st.secrets.get("GEMINI_API_KEY_1"), st.secrets.get("GEMINI_API_KEY_2")]
+    # Try to get API key from secrets
+    try:
+        api_key = st.secrets.get("GEMINI_API_KEY_1")
+    except:
+        api_key = None
+    
+    if not api_key:
+        return generate_fallback_prediction(summary_data)
     
     name = summary_data.get('name', '')
     gender = summary_data.get('gender', '')
@@ -393,86 +404,39 @@ def get_ai_prediction(summary_data):
     prompt = f"""
     ඔබ වෘත්තීය ශ්‍රී ලාංකික ජ්‍යොතිෂවේදියෙකු ලෙස ක්‍රියා කරන්න. 
     පහත තොරතුරු අනුව ඉතා නිවැරදි සහ විස්තරාත්මක පලාපල විස්තරයක් සිංහලෙන් ලබා දෙන්න.
-    ශ්‍රී ලංකාවේ සම්මත ජ්‍යොතිෂ ක්‍රමවේද (Vedic Astrology with Lahiri Ayanamsa) අනුව ගණනය කිරීම් සිදු කරන්න.
 
     **පරිශීලක තොරතුරු:**
     නම: {name}
     ස්ත්‍රී/පුරුෂ භාවය: {gender}
     උපන් දිනය: {dob}
     උපන් වේලාව: {time}
-    උපන් නගරය/දිස්ත්‍රික්කය: {city} (ශ්‍රී ලංකාව)
+    උපන් නගරය/දිස්ත්‍රික්කය: {city}
 
     **ගණනය කරන ලද ජ්‍යොතිෂ දත්ත:**
     - ලග්නය: {lagna}
     - උපන් නැකත: {nakshathra}
     - ගණය: {gana}
     - යෝනිය: {yoni}
-    - ලිංගය (ජන්ම ලිංග): {linga}
+    - ලිංගය: {linga}
     - අයනාංශ පද්ධතිය: {ayanamsa}
-    - ග්‍රහ පිහිටීම් (භාව අනුව): {bhava_data}
+    - ග්‍රහ පිහිටීම්: {bhava_data}
 
-    **වාර්තාවේ සැකසුම:**
-    
-    ## 🌟 මූලික ජ්‍යොතිෂ විස්තර
-    
-    | ගුණාංගය | විස්තරය |
-    |---|---|
-    | **ස්ත්‍රී/පුරුෂ භාවය** | {gender} |
-    | **ලග්නය** | {lagna} |
-    | **උපන් නැකත** | {nakshathra} |
-    | **ගණය** | {gana} |
-    | **යෝනිය** | {yoni} |
-    | **ජන්ම ලිංගය** | {linga} |
-    
-    ### 📖 1. නැකතේ ගුණාංග සහ ස්වභාවය
-    ඔබගේ උපන් නැකත වන **{nakshathra}** පිළිබඳ සවිස්තර විස්තරයක් ලබා දෙන්න. මෙහිදී එම නැකතේ අධිපති ග්‍රහයා, නැකතේ ස්වභාවය (දේව/මනුෂ්‍ය/රාක්ෂස), යෝනිය, සහ එමගින් පුද්ගලයාගේ ස්වභාවයට, චරිතයට සහ ජීවිතයට ඇති කරන බලපෑම් විස්තර කරන්න.
-    
-    ### 🪐 2. ග්‍රහ පිහිටීම් සහ ඒවායේ බලපෑම
-    ලබා දී ඇති ග්‍රහ පිහිටීම් අනුව:
-    - ලග්නාධිපති ග්‍රහයාගේ පිහිටීම සහ එහි බලපෑම
-    - රවි (සූර්ය) සහ සඳු (චන්ද්‍ර) පිහිටීම් සහ ඒවායේ සම්බන්ධතා
-    - කේන්ද්‍ර (1,4,7,10), ත්‍රිකෝණ (1,5,9) සහ දුෂ්ඨාන (6,8,12) භාව වල ග්‍රහ පිහිටීම්
-    
-    ### 💫 3. පොදු පලාපල විස්තරය
-    
-    **චරිතය සහ පෞරුෂත්වය:** {name} {salutation} ගේ ලග්නය {lagna} සහ නැකත {nakshathra} අනුව චරිතයේ ප්‍රධාන ලක්ෂණ විස්තර කරන්න.
-    
-    **අධ්‍යාපනය සහ බුද්ධිය:** බුධ ග්‍රහයාගේ පිහිටීම අනුව අධ්‍යාපන ක්ෂේත්‍රයේ ඇති හැකියාවන් විස්තර කරන්න.
-    
-    **රැකියාව සහ වෘත්තිය:** 10 වන භාවයේ ග්‍රහ පිහිටීම් සහ වෘත්තික අංශ විස්තර කරන්න.
-    
-    **සෞඛ්‍යය:** ලග්නය, ලග්නාධිපති සහ 6,8,12 භාව වල ග්‍රහ පිහිටීම් අනුව සෞඛ්‍ය තත්ත්වය විස්තර කරන්න.
-    
-    **විවාහය සහ සම්බන්ධතා:** 7 වන භාවය, සිකුරු සහ සඳුගේ පිහිටීම් අනුව විවාහ ජීවිතය සහ සම්බන්ධතා විස්තර කරන්න.
-    
-    ### 🔮 4. ඉදිරි කාලය පිළිබඳ අනාවැකි
-    වර්තමාන දශාව සහ ග්‍රහ චලනයන් අනුව ලබන මාස 12 තුළ අපේක්ෂිත ප්‍රධාන සිදුවීම් විස්තර කරන්න.
-    
-    ### 🙏 5. පිළියම් සහ උපදෙස්
-    අපල උපද්‍රව සහ ග්‍රහ දෝෂ සඳහා පහත පිළියම් යෝජනා කරමු:
-    - ජප මාලා සහ මන්ත්‍ර
-    - දාන ශීලාදිය
-    - රත්න ධාරණය
-    - පූජා වන්දනා
-    
-    ---
-    *© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය*
-    
-    **වැදගත් සටහන:** මෙම පලාපල විස්තරය AI මගින් ජනනය කරන ලද්දකි. සම්පූර්ණ උපදෙස් සඳහා වෘත්තීය ජ්‍යොතිෂවේදියෙකු හමුවන්න.
+    කරුණාකර පහත සඳහන් කරුණු ඇතුළත් කරන්න:
+    1. නැකතේ ගුණාංග සහ ස්වභාවය
+    2. ග්‍රහ පිහිටීම් සහ ඒවායේ බලපෑම
+    3. චරිතය සහ පෞරුෂත්වය
+    4. අධ්‍යාපනය, වෘත්තිය, සෞඛ්‍යය
+    5. ඉදිරි කාලය පිළිබඳ අනාවැකි
+    6. පිළියම් සහ උපදෙස්
     """
     
-    for key in keys:
-        if not key:
-            continue
-        try:
-            genai.configure(api_key=key)
-            model = genai.GenerativeModel('gemini--flash')
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            continue
-    
-    return generate_fallback_prediction(summary_data)
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return generate_fallback_prediction(summary_data)
 
 def generate_fallback_prediction(data):
     """Generate a basic prediction when AI is unavailable"""
@@ -506,65 +470,60 @@ def generate_fallback_prediction(data):
     </div>
     """
 
-# ==================== PDF Export Function ====================
-def create_pdf_report(user_data, calc_result, ai_report):
-    """Create PDF report"""
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
-    story = []
-    
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=24, textColor=colors.HexColor('#e94560'), alignment=1, spaceAfter=20)
-    heading_style = ParagraphStyle('CustomHeading', parent=styles['Heading2'], fontSize=16, textColor=colors.HexColor('#667eea'), spaceAfter=10, spaceBefore=15)
-    normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=10, leading=14)
-    
-    # Title
-    story.append(Paragraph("AstroPro SL - ජන්ම පත්‍ර වාර්තාව", title_style))
-    story.append(Spacer(1, 12))
-    
-    # User details
-    story.append(Paragraph(f"නම: {user_data.get('name', '')}", normal_style))
-    story.append(Paragraph(f"ලිංගය: {user_data.get('gender', '')}", normal_style))
-    story.append(Paragraph(f"උපන් දිනය: {user_data.get('dob', '')}", normal_style))
-    story.append(Paragraph(f"උපන් වේලාව: {user_data.get('time', '')}", normal_style))
-    story.append(Paragraph(f"දිස්ත්‍රික්කය: {user_data.get('city', '')}", normal_style))
-    story.append(Spacer(1, 12))
-    
-    # Calculation results
-    story.append(Paragraph("ජ්‍යොතිෂ ගණනය කිරීම්", heading_style))
-    
-    calc_data = [
-        ["ලග්නය", calc_result.get('lagna', '')],
-        ["නැකත", calc_result.get('nakshathra', '')],
-        ["ගණය", calc_result.get('gana', '')],
-        ["යෝනිය", calc_result.get('yoni', '')],
-        ["ලිංගය", calc_result.get('linga', '')],
-        ["අයනාංශය", calc_result.get('ayanamsa', '')]
-    ]
-    
-    calc_table = Table(calc_data, colWidths=[2*inch, 3*inch])
-    calc_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#667eea')),
-        ('TEXTCOLOR', (0, 0), (0, -1), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('GRID', (0, 0), (-1, -1), 1, colors.grey)
-    ]))
-    story.append(calc_table)
-    story.append(Spacer(1, 12))
-    
-    # AI Report (clean HTML tags)
-    clean_report = re.sub(r'<[^>]+>', '', ai_report)
-    story.append(Paragraph("පලාපල විස්තරය", heading_style))
-    story.append(Paragraph(clean_report[:4000], normal_style))
-    
-    # Build PDF
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
+# ==================== PDF Export Function (HTML-based fallback) ====================
+def create_html_report(user_data, calc_result, ai_report):
+    """Create HTML report (works without reportlab)"""
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>AstroPro SL - {user_data.get('name', '')} ගේ ජන්ම පත්‍රය</title>
+        <style>
+            body {{ font-family: 'Noto Sans Sinhala', 'Iskoola Pota', sans-serif; margin: 40px; line-height: 1.6; }}
+            h1 {{ color: #e94560; text-align: center; }}
+            h2 {{ color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 5px; }}
+            table {{ border-collapse: collapse; width: 100%; margin: 15px 0; }}
+            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            th {{ background-color: #667eea; color: white; }}
+            .footer {{ text-align: center; margin-top: 40px; font-size: 12px; color: #666; }}
+        </style>
+    </head>
+    <body>
+        <h1>☸️ AstroPro SL - ජන්ම පත්‍ර වාර්තාව</h1>
+        
+        <h2>📋 පුද්ගලික තොරතුරු</h2>
+        <table>
+            <tr><th>විස්තරය</th><th>තොරතුරු</th></tr>
+            <tr><td>නම</td><td>{user_data.get('name', '')}</td></tr>
+            <tr><td>ලිංගය</td><td>{user_data.get('gender', '')}</td></tr>
+            <tr><td>උපන් දිනය</td><td>{user_data.get('dob', '')}</td></tr>
+            <tr><td>උපන් වේලාව</td><td>{user_data.get('time', '')}</td></tr>
+            <tr><td>දිස්ත්‍රික්කය</td><td>{user_data.get('city', '')}</td></tr>
+        </table>
+        
+        <h2>🔮 ජ්‍යොතිෂ ගණනය කිරීම්</h2>
+        <table>
+            <tr><th>ගුණාංගය</th><th>විස්තරය</th></tr>
+            <tr><td>ලග්නය</td><td>{calc_result.get('lagna', '')}</td></tr>
+            <tr><td>නැකත</td><td>{calc_result.get('nakshathra', '')}</td></tr>
+            <tr><td>ගණය</td><td>{calc_result.get('gana', '')}</td></tr>
+            <tr><td>යෝනිය</td><td>{calc_result.get('yoni', '')}</td></tr>
+            <tr><td>ලිංගය</td><td>{calc_result.get('linga', '')}</td></tr>
+            <tr><td>අයනාංශය</td><td>{calc_result.get('ayanamsa', '')}</td></tr>
+        </table>
+        
+        <h2>📜 පලාපල විස්තරය</h2>
+        <div>{ai_report}</div>
+        
+        <div class="footer">
+            <p>© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය<br>
+            වාර්තාව උත්පාදනය කළ දිනය: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        </div>
+    </body>
+    </html>
+    """
+    return html_content
 
 # ==================== WhatsApp Share Function ====================
 def create_whatsapp_message(user_data, calc_result):
@@ -704,7 +663,7 @@ def login_page():
 def admin_panel():
     st.markdown("## 👑 පරිපාලක පුවරුව")
     
-    tab1, tab2, tab3 = st.tabs(["📊 පරිශීලකයන්", "📜 සියලු ගණනය කිරීම්", "⚙️ සැකසුම්"])
+    tab1, tab2 = st.tabs(["📊 පරිශීලකයන්", "📜 සියලු ගණනය කිරීම්"])
     
     with tab1:
         st.subheader("ලියාපදිංචි පරිශීලකයන්")
@@ -722,27 +681,6 @@ def admin_panel():
                 })
             
             st.dataframe(user_data, use_container_width=True)
-            
-            # Make admin
-            st.markdown("---")
-            col1, col2 = st.columns(2)
-            with col1:
-                make_admin_user = st.selectbox("පරිපාලක කිරීමට පරිශීලකයෙකු තෝරන්න", 
-                                               [u for u in users.keys() if not users[u].get('is_admin')])
-                if st.button("පරිපාලක කරන්න"):
-                    users[make_admin_user]['is_admin'] = True
-                    firebase_save_data("users", users)
-                    st.success(f"{make_admin_user} පරිපාලක ලෙස එක් කරන ලදි")
-                    st.rerun()
-            
-            with col2:
-                remove_admin_user = st.selectbox("පරිපාලක තනතුරු ඉවත් කිරීමට", 
-                                                 [u for u in users.keys() if users[u].get('is_admin') and u != 'admin'])
-                if st.button("පරිපාලක ඉවත් කරන්න"):
-                    users[remove_admin_user]['is_admin'] = False
-                    firebase_save_data("users", users)
-                    st.success(f"{remove_admin_user} ගේ පරිපාලක තනතුරු ඉවත් කරන ලදි")
-                    st.rerun()
         else:
             st.info("පරිශීලකයන් නොමැත")
     
@@ -759,39 +697,13 @@ def admin_panel():
                     "නම": calc.get('name', ''),
                     "ලග්නය": calc.get('lagna', ''),
                     "නැකත": calc.get('nakshathra', ''),
-                    "දිනය": calc.get('timestamp', '')[:10],
-                    "calc_id": calc_id
+                    "දිනය": calc.get('timestamp', '')[:10]
                 })
         
         if all_calcs:
             st.dataframe(all_calcs, use_container_width=True)
-            
-            # View specific calculation
-            st.markdown("---")
-            selected_calc_id = st.selectbox("වාර්තාවක් බලන්න", 
-                                           [f"{c['පරිශීලක']} - {c['නම']} ({c['දිනය']})" for c in all_calcs])
-            if selected_calc_id:
-                calc_id = all_calcs[[f"{c['පරිශීලක']} - {c['නම']} ({c['දිනය']})" for c in all_calcs].index(selected_calc_id)]['calc_id']
-                username = all_calcs[[f"{c['පරිශීලක']} - {c['නම']} ({c['දිනය']})" for c in all_calcs].index(selected_calc_id)]['පරිශීලක']
-                
-                calc_data = firebase_get_data(f"users/{username}/calculations/{calc_id}")
-                if calc_data:
-                    st.json(calc_data)
         else:
             st.info("ගණනය කිරීම් නොමැත")
-    
-    with tab3:
-        st.subheader("පද්ධති සැකසුම්")
-        
-        # Default Ayanamsa
-        default_ayanamsa = st.selectbox(
-            "පෙරනිමි අයනාංශ පද්ධතිය",
-            ["Lahiri (Chitrapaksha)", "Mani-Vakya", "Siddhanta", "Raman"]
-        )
-        
-        if st.button("සුරකින්න"):
-            firebase_save_data("settings/default_ayanamsa", default_ayanamsa)
-            st.success("සැකසුම් සුරකින ලදි")
 
 # ==================== User Dashboard ====================
 def user_dashboard():
@@ -917,23 +829,20 @@ def user_dashboard():
                                     ai_report = get_ai_prediction(st.session_state.current_calc)
                                     st.session_state.current_ai_report = ai_report
                                     st.markdown("### 📜 AI පලාපල වාර්තාව")
-                                    st.markdown(f"<div class='report-box'>{ai_report}</div>", unsafe_allow_html=True)
+                                    st.markdown(ai_report, unsafe_allow_html=True)
                                     
                                     # Share buttons
                                     col1, col2, col3 = st.columns(3)
                                     with col1:
-                                        if st.button("📥 PDF බාගන්න"):
-                                            pdf_buffer = create_pdf_report(
-                                                {"name": name, "gender": gender, "dob": dob.strftime("%Y-%m-%d"), 
-                                                 "time": f"{hour:02d}:{minute:02d}", "city": city},
-                                                calc_result, ai_report
-                                            )
-                                            st.download_button(
-                                                label="PDF බාගන්න",
-                                                data=pdf_buffer,
-                                                file_name=f"astro_report_{name}_{datetime.now().strftime('%Y%m%d')}.pdf",
-                                                mime="application/pdf"
-                                            )
+                                        # PDF Download (HTML-based)
+                                        html_report = create_html_report(
+                                            {"name": name, "gender": gender, "dob": dob.strftime("%Y-%m-%d"), 
+                                             "time": f"{hour:02d}:{minute:02d}", "city": city},
+                                            calc_result, ai_report
+                                        )
+                                        b64 = base64.b64encode(html_report.encode()).decode()
+                                        href = f'<a href="data:text/html;base64,{b64}" download="astro_report_{name}_{datetime.now().strftime("%Y%m%d")}.html"><button style="background-color:#4CAF50;color:white;padding:10px 20px;border:none;border-radius:5px;cursor:pointer;">📥 HTML Report බාගන්න</button></a>'
+                                        st.markdown(href, unsafe_allow_html=True)
                                     
                                     with col2:
                                         whatsapp_msg = create_whatsapp_message(
@@ -968,45 +877,6 @@ def user_dashboard():
                 })
             
             st.dataframe(calc_list, use_container_width=True)
-            
-            selected_calc = st.selectbox("වාර්තාවක් තෝරන්න", 
-                                        [f"{c['දිනය']} - {c['නම']}" for c in calc_list])
-            
-            if selected_calc:
-                calc_id = calc_list[[f"{c['දිනය']} - {c['නම']}" for c in calc_list].index(selected_calc)]['calc_id']
-                calc_data = calculations[calc_id]
-                
-                st.markdown("---")
-                st.markdown(f"## 📊 {calc_data.get('name', '')} ගේ වාර්තාව")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown(f"<div class='detail-box'><b>⭐ ලග්නය</b><br>{calc_data.get('lagna', '')}</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='detail-box'><b>🕉️ ගණය</b><br>{calc_data.get('gana', '')}</div>", unsafe_allow_html=True)
-                with col2:
-                    st.markdown(f"<div class='detail-box'><b>🌙 නැකත</b><br>{calc_data.get('nakshathra', '')}</div>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='detail-box'><b>🦁 යෝනිය</b><br>{calc_data.get('yoni', '')}</div>", unsafe_allow_html=True)
-                
-                # Generate AI for saved report
-                if st.button("🤖 AI පලාපල විස්තරය ලබාගන්න", key="saved_ai_btn"):
-                    with st.spinner("🤖 AI විශ්ලේෂණය කරමින්..."):
-                        ai_data = {
-                            "name": calc_data.get('name', ''),
-                            "gender": calc_data.get('gender', 'ගැහැණු'),
-                            "dob": calc_data.get('dob', ''),
-                            "time": calc_data.get('time', ''),
-                            "city": calc_data.get('city', ''),
-                            "lagna": calc_data.get('lagna', ''),
-                            "nakshathra": calc_data.get('nakshathra', ''),
-                            "gana": calc_data.get('gana', ''),
-                            "yoni": calc_data.get('yoni', ''),
-                            "linga": calc_data.get('linga', ''),
-                            "ayanamsa": calc_data.get('ayanamsa', 'Lahiri'),
-                            "bhava_data": calc_data.get('bhava_data', '')
-                        }
-                        ai_report = get_ai_prediction(ai_data)
-                        st.markdown("### 📜 AI පලාපල වාර්තාව")
-                        st.markdown(f"<div class='report-box'>{ai_report}</div>", unsafe_allow_html=True)
         else:
             st.info("ඔබට තවමත් සුරැකි වාර්තා නොමැත. 'නව ගණනය කිරීම' ටැබයෙන් පළමු ගණනය කිරීම සිදු කරන්න.")
     
@@ -1018,7 +888,7 @@ def user_dashboard():
         
         1. **නව ගණනය කිරීම** - ඔබගේ උපන් තොරතුරු ඇතුළත් කර කේන්දරය බලන්න
         2. **AI පලාපල** - ගණනය කිරීමෙන් පසු AI බොත්තම ඔබා විස්තරාත්මක පලාපල වාර්තාවක් ලබාගන්න
-        3. **PDF බාගැනීම** - වාර්තා PDF ලෙස සුරකින්න
+        3. **HTML Report** - වාර්තාව HTML ලෙස සුරකින්න
         4. **WhatsApp Share** - වාර්තා WhatsApp මගින් බෙදාගන්න
         
         #### 🙏 පිළියම් පිළිබඳ විස්තර
