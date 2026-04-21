@@ -194,13 +194,19 @@ def perform_calculation(name, gender, dob, hour, minute, city, ayanamsa):
         lagna_lord = lagna_lords[lagna_rashi]
         
         planets_def = [
-            ("රවි", swe.SUN), ("සඳු", swe.MOON), ("කුජ", swe.MARS),
-            ("බුධ", swe.MERCURY), ("ගුරු", swe.JUPITER), ("සිකුරු", swe.VENUS),
-            ("ශනි", swe.SATURN), ("රාහු", swe.MEAN_NODE)
+            ("රවි (සූර්ය)", swe.SUN), 
+            ("සඳු (චන්ද්‍ර)", swe.MOON), 
+            ("කුජ (අඟහරු)", swe.MARS),
+            ("බුධ (බුද්ධ)", swe.MERCURY), 
+            ("ගුරු (බ්‍රහස්පති)", swe.JUPITER), 
+            ("සිකුරු (ශුක්‍ර)", swe.VENUS),
+            ("ශනි (සෙනසුරු)", swe.SATURN), 
+            ("රාහු", swe.MEAN_NODE)
         ]
         
         bhava_map = {i: [] for i in range(1, 13)}
         planet_positions = {}
+        planet_bhava_details = {}
         moon_lon = 0
         
         for p_name, p_id in planets_def:
@@ -211,88 +217,162 @@ def perform_calculation(name, gender, dob, hour, minute, city, ayanamsa):
                 moon_lon = lon
             p_bhava = get_planet_bhava(lon, houses)
             bhava_map[p_bhava].append(p_name)
+            planet_bhava_details[p_name] = p_bhava
         
         nak_idx = int(moon_lon / (360.0 / 27)) % 27
         nak_name = NAK_NAMES[nak_idx]
         gana, yoni, linga, nak_lord, nak_features = get_nakshatra_details(nak_idx)
         
+        # Prepare planet positions text for API
+        planet_details = []
+        for planet, bhava in planet_bhava_details.items():
+            planet_details.append(f"{planet} - {bhava} වන භාවයේ")
+        
         result = {
-            "name": name, "gender": gender, "dob": dob.strftime("%Y-%m-%d"),
-            "time": f"{hour:02d}:{minute:02d}", "city": city,
-            "lagna": lagna_name, "lagna_lord": lagna_lord,
-            "nakshathra": nak_name, "nak_lord": nak_lord, "nak_features": nak_features,
-            "gana": gana, "yoni": yoni, "linga": linga,
-            "ayanamsa": ayanamsa, "bhava_map": bhava_map,
-            "planet_positions": planet_positions
+            "name": name, 
+            "gender": gender, 
+            "dob": dob.strftime("%Y-%m-%d"),
+            "time": f"{hour:02d}:{minute:02d}", 
+            "city": city,
+            "lagna": lagna_name, 
+            "lagna_lord": lagna_lord,
+            "nakshathra": nak_name, 
+            "nak_lord": nak_lord, 
+            "nak_features": nak_features,
+            "gana": gana, 
+            "yoni": yoni, 
+            "linga": linga,
+            "ayanamsa": ayanamsa, 
+            "bhava_map": bhava_map,
+            "planet_positions": planet_positions,
+            "planet_bhava_details": planet_bhava_details,
+            "planet_details_text": "\n".join(planet_details)
         }
         
         return result, None
     except Exception as e:
         return None, str(e)
 
-# ==================== AI Prediction with Multiple API Keys ====================
-def get_ai_prediction_with_fallback(calc_data):
-    """Try multiple Gemini API keys with fallback"""
+# ==================== AI Prediction with Gemini API ====================
+def get_ai_astrology_report(calc_data):
+    """Send calculated data to Gemini API and get professional astrology report"""
     
-    # Get all API keys from secrets
+    # Get API keys from secrets
     api_keys = []
     try:
-        for i in range(1, 4):  # Try keys 1, 2, 3
+        for i in range(1, 4):
             key = st.secrets.get(f"GEMINI_API_KEY_{i}")
             if key and key != "your-gemini-api-key-here":
                 api_keys.append(key)
     except:
         pass
     
-    # Create detailed prompt for Sinhala astrology report
-    prompt = f"""ඔබ ශ්‍රී ලංකාවේ ප්‍රමුඛතම ජ්‍යොතිෂවේදියෙකු ලෙස ක්‍රියා කරන්න. පහත තොරතුරු අනුව ඉතා නිවැරදි, සවිස්තරාත්මක සහ වෘත්තීය පලාපල වාර්තාවක් සිංහලෙන් සකස් කරන්න.
+    # Prepare the calculated astrological data for the API
+    salutation = "මහතා" if calc_data.get('gender') == "පිරිමි" else "මහත්මිය"
+    
+    # Format planet positions nicely
+    planet_list = []
+    for planet, bhava in calc_data.get('planet_bhava_details', {}).items():
+        planet_list.append(f"   • {planet} - {bhava} වන භාවයේ")
+    planet_text = "\n".join(planet_list)
+    
+    # Format bhava details
+    bhava_list = []
+    for bhava, planets in calc_data.get('bhava_map', {}).items():
+        if planets:
+            bhava_list.append(f"   • {bhava} වන භාවය: {', '.join(planets)}")
+        else:
+            bhava_list.append(f"   • {bhava} වන භාවය: කිසිදු ග්‍රහයෙක් නැත")
+    bhava_text = "\n".join(bhava_list)
+    
+    # Create detailed prompt with all calculated data
+    prompt = f"""ඔබ ශ්‍රී ලංකාවේ ප්‍රමුඛතම වෛදික ජ්‍යොතිෂවේදියෙකු ලෙස ක්‍රියා කරන්න. පහත දක්වා ඇති නිවැරදිව ගණනය කරන ලද ජ්‍යොතිෂ දත්ත මත පදනම්ව ඉතා සවිස්තරාත්මක, වෘත්තීය පලාපල වාර්තාවක් සිංහලෙන් සකස් කරන්න.
 
-## පුද්ගලික තොරතුරු
-- නම: {calc_data.get('name')}
-- ලිංගය: {calc_data.get('gender')}
-- උපන් දිනය: {calc_data.get('dob')}
-- උපන් වේලාව: {calc_data.get('time')}
-- උපන් ස්ථානය: {calc_data.get('city')}
+═══════════════════════════════════════
+📊 ගණනය කරන ලද ජ්‍යොතිෂ දත්ත
+═══════════════════════════════════════
 
-## ජ්‍යොතිෂ ගණනය කිරීම්
-- ලග්නය: {calc_data.get('lagna')}
-- ලග්නාධිපති: {calc_data.get('lagna_lord')}
-- උපන් නැකත: {calc_data.get('nakshathra')}
-- නැකත් අධිපති: {calc_data.get('nak_lord')}
-- නැකතේ විශේෂ ලක්ෂණ: {calc_data.get('nak_features')}
-- ගණය: {calc_data.get('gana')}
-- යෝනිය: {calc_data.get('yoni')}
+👤 පුද්ගලික තොරතුරු:
+   • නම: {calc_data.get('name')}
+   • ලිංගය: {calc_data.get('gender')}
+   • උපන් දිනය: {calc_data.get('dob')}
+   • උපන් වේලාව: {calc_data.get('time')}
+   • උපන් ස්ථානය: {calc_data.get('city')}
 
-කරුණාකර පහත සඳහන් කරුණු ඉතා විස්තරාත්මකව, පේළි ගණන 30-40 අතර සිංහලෙන් ලියන්න. එක් එක් කොටසට අවම වශයෙන් පේළි 3-4 බැගින් ලියන්න:
+⭐ ලග්න තොරතුරු:
+   • ලග්නය: {calc_data.get('lagna')}
+   • ලග්නාධිපති ග්‍රහයා: {calc_data.get('lagna_lord')}
 
-### 1. නැකතේ ස්වභාවය සහ ගුණාංග
-{calc_data.get('nakshathra')} නැකතේ සාමාන්‍ය ලක්ෂණ, මෙම නැකතේ උපත ලබන අයගේ චරිත ස්වභාවය, නැකත් අධිපති ග්‍රහයාගේ බලපෑම පිළිබඳ විස්තර කරන්න.
+🌙 නැකත් තොරතුරු:
+   • උපන් නැකත: {calc_data.get('nakshathra')}
+   • නැකත් අධිපති ග්‍රහයා: {calc_data.get('nak_lord')}
+   • නැකතේ විශේෂ ලක්ෂණ: {calc_data.get('nak_features')}
+   • ගණය: {calc_data.get('gana')}
+   • යෝනිය: {calc_data.get('yoni')}
+   • ජන්ම ලිංගය: {calc_data.get('linga')}
 
-### 2. ලග්නයේ බලපෑම
-{calc_data.get('lagna')} ලග්නයේ ප්‍රධාන ලක්ෂණ, ලග්නාධිපති {calc_data.get('lagna_lord')} ග්‍රහයාගේ බලපෑම, ලග්නය සහ නැකත එක්වීමෙන් සිදුවන විශේෂ බලපෑම් විස්තර කරන්න.
+🪐 ග්‍රහ පිහිටීම් (භාව අනුව):
+{planet_text}
 
-### 3. චරිතය සහ පෞරුෂත්වය
-ප්‍රධාන චරිත ලක්ෂණ (හොඳ සහ නරක), සමාජ සම්බන්ධතා, පවුල් ජීවිතය පිළිබඳ විස්තර කරන්න.
+🏠 භාව වල ග්‍රහ පිහිටීම් සාරාංශය:
+{bhava_text}
 
-### 4. අධ්‍යාපනය සහ බුද්ධි හැකියාව
-අධ්‍යාපන ක්ෂේත්‍රයේ දක්ෂතා, විශේෂ දක්ෂතා සහ කුසලතා, ඉගෙනුම් ක්‍රමය පිළිබඳ විස්තර කරන්න.
+═══════════════════════════════════════
 
-### 5. වෘත්තිය සහ රැකියාව
-සුදුසුම රැකියා ක්ෂේත්‍ර, වෘත්තීය දියුණුව සඳහා සුබ කාල, ව්‍යාපාරික අවස්ථා පිළිබඳ විස්තර කරන්න.
+ඉහත දත්ත මත පදනම්ව පහත සඳහන් කරුණු ඉතා විස්තරාත්මකව සිංහලෙන් ලියන්න:
 
-### 6. සෞඛ්‍ය තත්ත්වය
-සාමාන්‍ය සෞඛ්‍ය තත්ත්වය, අවධානය යොමු කළ යුතු රෝග, සෞඛ්‍ය සම්බන්ධ උපදෙස් දෙන්න.
+## 📖 1. උපන් නැකතේ ස්වභාවය සහ ගුණාංග
+- {calc_data.get('nakshathra')} නැකතේ සාමාන්‍ය ලක්ෂණ
+- මෙම නැකතේ උපත ලබන අයගේ ප්‍රධාන චරිත ලක්ෂණ
+- නැකත් අධිපති {calc_data.get('nak_lord')} ග්‍රහයාගේ බලපෑම
+- ගණය ({calc_data.get('gana')}) සහ යෝනිය ({calc_data.get('yoni')}) යන ගුණාංගවල බලපෑම
 
-### 7. විවාහ සහ සම්බන්ධතා
-විවාහ ජීවිතය, සහකරු/සහකාරියගේ ලක්ෂණ, ප්‍රේම සම්බන්ධතා පිළිබඳ විස්තර කරන්න.
+## 🪐 2. ලග්නයේ බලපෑම සහ පෞරුෂත්වය
+- {calc_data.get('lagna')} ලග්නයේ ප්‍රධාන ලක්ෂණ
+- ලග්නාධිපති {calc_data.get('lagna_lord')} ග්‍රහයාගේ බලපෑම
+- ලග්නය සහ නැකත එක්වීමෙන් සිදුවන විශේෂ බලපෑම්
+- පෞරුෂත්වයේ ශක්ති පැති සහ දුර්වලතා
 
-### 8. ඉදිරි කාලය පිළිබඳ අනාවැකි
-ලබන වසර 5 සඳහා ප්‍රධාන සිදුවීම්, සුබ කාල පරිච්ඡේද, අවධානය යොමු කළ යුතු කාල පිළිබඳ අනාවැකි දෙන්න.
+## 📚 3. අධ්‍යාපනය, බුද්ධි හැකියාව සහ වෘත්තිය
+- අධ්‍යාපන ක්ෂේත්‍රයේ දක්ෂතා සහ සුදුසු ක්ෂේත්‍ර
+- විශේෂ දක්ෂතා සහ ස්වභාවික කුසලතා
+- සුදුසුම රැකියා ක්ෂේත්‍ර සහ වෘත්තීය මාර්ග
+- වෘත්තීය දියුණුව සඳහා සුබ කාල පරිච්ඡේද
 
-### 9. පිළියම් සහ උපදෙස්
-ග්‍රහ දෝෂ සඳහා පිළියම්, දෛනික චර්යාව සඳහා යෝජනා, මන්ත්‍ර සහ ජප මාලා, දාන ශීලාදිය, ආගමික වතාවත් පිළිබඳ උපදෙස් දෙන්න.
+## 💑 4. සමාජ සම්බන්ධතා, විවාහ සහ පවුල් ජීවිතය
+- සමාජ සම්බන්ධතා වල ස්වභාවය
+- විවාහ ජීවිතයේ ලක්ෂණ
+- සහකරු/සහකාරියගේ අපේක්ෂිත ලක්ෂණ
+- පවුල් සබඳතා සහ දරු සම්පත් පිළිබඳ අනාවැකි
 
-වාර්තාව ඉතා වෘත්තීය, සවිස්තරාත්මක, ශ්‍රී ලාංකීය ජ්‍යොතිෂ සම්ප්‍රදායට අනුකූල සහ ධනාත්මක විය යුතුය. සුදුසු තැන්වලදී ශුභාශීර්වාද එක් කරන්න."""
+## 🏥 5. සෞඛ්‍ය තත්ත්වය සහ ජීවන රටාව
+- සාමාන්‍ය සෞඛ්‍ය තත්ත්වය
+- අවධානය යොමු කළ යුතු සෞඛ්‍ය ගැටලු
+- සෞඛ්‍ය සම්බන්ධ උපදෙස් සහ යෝජනා
+
+## 🔮 6. ඉදිරි කාලය පිළිබඳ අනාවැකි
+- ලබන වසර 3-5 සඳහා ප්‍රධාන සිදුවීම්
+- සුබ කාල පරිච්ඡේද
+- අවධානය යොමු කළ යුතු කාල සීමා
+- විදේශ සංචාර, රැකියා වෙනස්වීම් වැනි වැදගත් අවස්ථා
+
+## 🙏 7. පිළියම්, මන්ත්‍ර සහ උපදෙස්
+- ග්‍රහ දෝෂ සඳහා විශේෂ පිළියම්
+- දෛනික චර්යාව සඳහා යෝජනා
+- ජප කළ යුතු මන්ත්‍ර
+- දාන ශීලාදිය සහ ආගමික වතාවත්
+
+═══════════════════════════════════════
+
+වැදගත් උපදෙස්:
+- වාර්තාව ඉතා විස්තරාත්මකව (අවම වශයෙන් පේළි 50-60) ලියන්න
+- එක් එක් කොටසට අවම වශයෙන් වාක්‍ය 5-6 බැගින් ලියන්න
+- සිංහල භාෂාව නිවැරදිව, ගෞරවාන්විතව භාවිතා කරන්න
+- සුදුසු තැන්වලදී ශුභාශීර්වාද එක් කරන්න
+- ධනාත්මක, ප්‍රොත්සාහජනක උපදෙස් ලබා දෙන්න
+- වාර්තාව අවසානයේ "ආයුබෝවන්! සැම දෙයක්ම සුභ සිද්ධ වේවා!" යනුවෙන් එක් කරන්න
+
+═══════════════════════════════════════"""
 
     # Try each API key
     for i, api_key in enumerate(api_keys):
@@ -301,111 +381,44 @@ def get_ai_prediction_with_fallback(calc_data):
             model = genai.GenerativeModel('gemini-1.5-flash')
             response = model.generate_content(prompt)
             if response and response.text:
-                return response.text
+                return f"""<div class="result-card">
+<h2>🌟 {calc_data.get('name')} {salutation} ගේ සම්පූර්ණ පලාපල වාර්තාව</h2>
+<p><small>✨ වෛදික ජ්‍යොතිෂය මත පදනම් වූ ගණනය කිරීම් සහ AI විශ්ලේෂණය<br>
+📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
+<hr>
+{response.text}
+<hr>
+<p style="text-align: center"><em>© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය<br>
+🔮 සත්‍යය සහ ධර්මය ජය වේවා!</em></p>
+</div>"""
         except Exception as e:
             time.sleep(1)
             continue
     
-    # If all keys fail, return detailed fallback report
-    return generate_detailed_sinhala_report(calc_data)
+    # If all API keys fail
+    return f"""<div class="result-card">
+<h2>🌟 {calc_data.get('name')} {salutation} ගේ පලාපල වාර්තාව</h2>
+<p><small>✨ ගණනය කරන ලද දත්ත මත පදනම් වූ වාර්තාව</small></p>
+<hr>
 
-def generate_detailed_sinhala_report(data):
-    """Generate detailed Sinhala astrology report without AI"""
-    
-    salutation = "මහතා" if data.get('gender') == "පිරිමි" else "මහත්මිය"
-    
-    report = f"""
-    <div class="result-card">
-    <h2>🌟 {data.get('name', '')} {salutation} ගේ සවිස්තර පලාපල වාර්තාව</h2>
-    <p><small>ශ්‍රී ලාංකීය වෛදික ජ්‍යොතිෂ සම්ප්‍රදාය අනුව සකස් කරන ලදී</small></p>
-    
-    <h3>📋 1. මූලික ජ්‍යොතිෂ තොරතුරු</h3>
-    <table style="width:100%; border-collapse:collapse;">
-        <tr><th style="background:#e94560; padding:10px; text-align:left;">ගුණාංගය</th><th style="background:#e94560; padding:10px; text-align:left;">විස්තරය</th></tr>
-        <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>⭐ ලග්නය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{data.get('lagna', '')} </td></tr>
-        <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>👑 ලග්නාධිපති</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{data.get('lagna_lord', '')}</td></tr>
-        <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🌙 උපන් නැකත</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{data.get('nakshathra', '')}</td></tr>
-        <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🪐 නැකත් අධිපති</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{data.get('nak_lord', '')}</td></tr>
-        <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🕉️ ගණය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{data.get('gana', '')}</td></tr>
-        <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🦁 යෝනිය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{data.get('yoni', '')}</td></tr>
-        <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>⚥ ජන්ම ලිංගය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{data.get('linga', '')}</td></tr>
-    </table>
-    
-    <h3>📖 2. නැකතේ ස්වභාවය සහ ගුණාංග</h3>
-    <p><strong>{data.get('nakshathra', '')} නැකත</strong> - {data.get('nak_features', '')}</p>
-    <p>මෙම නැකතේ අධිපතිත්වය දරන්නේ <strong>{data.get('nak_lord', '')}</strong> ග්‍රහයා වන අතර, මෙම නැකතේ උපත ලබන පුද්ගලයන් සාමාන්‍යයෙන් ඉතා බුද්ධිමත්, කාරුණික, අවංක සහ ප්‍රතිපත්තිගරුක පුද්ගලයන් වේ. අන් අයට උදව් කිරීමට ඇති කැමැත්ත සහ ස්වභාවික නායකත්ව ගුණාංග නිසා සමාජයේ ගෞරවයට පාත්‍ර වේ. මෙම නැකතේ උපත ලබන අය තුළ අධ්‍යාත්මික නැඹුරුවක් ද දැකිය හැකි අතර, ඔවුන් සැමවිටම සත්‍යය සහ ධර්මය උසස් කොට සලකයි.</p>
-    
-    <h3>🪐 3. ලග්නයේ බලපෑම</h3>
-    <p><strong>{data.get('lagna', '')} ලග්නය</strong> සහ <strong>{data.get('lagna_lord', '')}</strong> ලග්නාධිපතිත්වය යටතේ උපත ලැබීම නිසා, ඔබ සතුව ඇත්තේ අතිවිශිෂ්ට නායකත්ව ගුණාංග, ධෛර්යය, ස්ථිරභාවය සහ අධිෂ්ඨාන ශක්තියයි. {data.get('lagna', '')} ලග්නය නිසා ඔබ ඉතා අවංක, කඩිසර සහ විනයගරුක පුද්ගලයෙකි. ඔබගේ ජීවිතයේ ඉහළ ඉලක්ක තබා ගැනීමට සහ ඒවා සාක්ෂාත් කර ගැනීමට ඇති හැකියාව අගනේය.</p>
-    
-    <h3>💫 4. චරිතය සහ පෞරුෂත්වය</h3>
-    <p><strong>ප්‍රධාන ලක්ෂණ:</strong> අවංකභාවය, කඩිසරකම, විනයගරුක බව, අන් අයට ගරු කිරීම, ඉවසීම, ස්ථාවරත්වය</p>
-    <p><strong>සමාජ සම්බන්ධතා:</strong> මිත්‍රශීලී ස්වභාවය නිසා පුළුල් මිතුරු කවයක් ඇත. සමාජයේ ක්‍රියාකාරීව සහභාගී වීමට කැමැත්තක් දක්වයි.</p>
-    <p><strong>පවුල් ජීවිතය:</strong> පවුලේ අය කෙරෙහි ඇති බැඳීම සහ ආදරය අගනේය. පවුලේ සාමාජිකයන්ගේ සුවදුක් සඳහා සැමවිටම ක්‍රියා කරයි.</p>
-    
-    <h3>📚 5. අධ්‍යාපනය සහ බුද්ධි හැකියාව</h3>
-    <p>ඔබ සතුව ඇති තියුණු බුද්ධිය සහ විශ්ලේෂණාත්මක චින්තනය නිසා අධ්‍යාපන කටයුතුවලදී විශිෂ්ට ප්‍රතිඵල අත්කර ගනු ඇත. විශේෂයෙන් ගණිතය, විද්‍යාව, පරිගණක තාක්ෂණය, නීතිය, වෛද්‍ය විද්‍යාව, ඉංජිනේරු විද්‍යාව, කළමනාකරණය වැනි ක්ෂේත්‍රවල දක්ෂතා පෙන්වයි. ඉගෙනුම් කටයුතු සඳහා ඇති කැපවීම සහ කඩිසරකම නිසා උසස් අධ්‍යාපනයක් සාමාන්‍යයෙන් හිමි වේ.</p>
-    
-    <h3>💼 6. වෘත්තිය සහ රැකියාව</h3>
-    <p><strong>සුදුසු රැකියා ක්ෂේත්‍ර:</strong> ඉංජිනේරු, වෛද්‍ය, නීතිඥ, කළමනාකරණ, පරිපාලන සේවා, අධ්‍යාපනය, පර්යේෂණ, තාක්ෂණය, මූල්ය, බැංකු, රාජ්‍ය සේවය</p>
-    <p><strong>වෘත්තීය දියුණුව:</strong> වයස අවුරුදු 25-32 අතර කාලය තුළ වෘත්තීය දියුණුවක් අපේක්ෂා කළ හැකිය. වයස අවුරුදු 35-42 අතර කාලය තුළ ස්ථාවරත්වයක් සහ පිළිගැනීමක් හිමි වේ.</p>
-    
-    <h3>🏥 7. සෞඛ්‍ය තත්ත්වය</h3>
-    <p>සාමාන්‍යයෙන් හොඳ සෞඛ්‍ය තත්ත්වයක් පවතී. කෙසේ වෙතත්, ආහාර ගැනීමේදී විමසිල්ලෙන් කටයුතු කළ යුතුය. නිතිපතා ව්‍යායාම කිරීම, යෝගාවලිය, ප්‍රාණායාම මගින් සෞඛ්‍යය වඩාත් හොඳින් පවත්වා ගත හැක. ආමාශ ආබාධ, හිසරදය, ආතතිය වැනි ගැටලු ඇති විය හැකි බැවින් ඒ පිළිබඳ අවධානයෙන් සිටීම වැදගත්.</p>
-    
-    <h3>💑 8. විවාහ සහ සම්බන්ධතා</h3>
-    <p>විවාහ ජීවිතය සාමාන්‍යයෙන් සාමකාමී වේ. අන්යෝන්ය අවබෝධය, ගෞරවය සහ විශ්වාසය මත පදනම් වූ සම්බන්ධතාවයක් ගොඩනගා ගැනීමට හැකි වේ. විවාහය සඳහා සුබ කාල වයස අවුරුදු 26-30 අතර වේ. සහකරු/සහකාරිය බුද්ධිමත්, අවංක, කාරුණික සහ ස්ථාවර පුද්ගලයෙකු වනු ඇත.</p>
-    
-    <h3>🔮 9. ඉදිරි කාලය පිළිබඳ අනාවැකි</h3>
-    <p>• <strong>ලබන වසර 1-2:</strong> අධ්‍යාපනය හා වෘත්තිය සඳහා සුබ කාලයකි. නව අවස්ථා සහ ජයග්‍රහණ අත්කර ගැනීමට හැකි වේ.<br>
-    • <strong>ලබන වසර 3-5:</strong> ආර්ථික දියුණුවක් සහ ස්ථාවරත්වයක් අපේක්ෂා කළ හැක. දේපළ වාහන සම්බන්ධ සුබ අවස්ථා හිමි වේ.<br>
-    • <strong>විදේශ ගමන්:</strong> විදේශ සංචාර සඳහා ඇති අවස්ථා හිමිවේ. විදේශ රැකියා සඳහා ද අවස්ථා තිබේ.</p>
-    
-    <h3>🙏 10. පිළියම් සහ උපදෙස්</h3>
-    <p><strong>ග්‍රහ දෝෂ සඳහා පිළියම්:</strong></p>
-    <ul>
-        <li>සෑම <strong>බ්‍රහස්පතින්දා</strong> දිනකම පන්සල් ගොස් බුද්ධ පූජා පැවැත්වීම</li>
-        <li><strong>කහ පැහැති මල්</strong> සහ ආහාර දන් දීම සුබයි</li>
-        <li><strong>"ඕම් ගුරුවේ නමඃ"</strong> මන්ත්‍රය දිනපතා 108 වතාවක් ජප කිරීම</li>
-        <li>සෑම <strong>පුර අටවක</strong> දිනකම උපවාසයක් රැකීම</li>
-        <li>දරුවන්ට, ගුරුවරුන්ට සහ අවශ්‍යතා ඇති අයට උදව් කිරීමෙන් පින් සිද්ධ වේ</li>
-        <li>සෑම දිනකම උදෑසන හිරු දෙවියන්ට වතුර පූජා කිරීම</li>
-    </ul>
-    
-    <p><strong>දෛනික චර්යාව සඳහා යෝජනා:</strong></p>
-    <ul>
-        <li>උදෑසන 5.00-6.00 අතර කාලයේ නැගිටීම</li>
-        <li>දිනපතා යෝගා සහ භාවනාව පුරුදු කිරීම</li>
-        <li>සරල, සෞඛ්‍ය සම්පන්න ආහාර ගැනීම</li>
-        <li>රාත්‍රී 10.00 ට පෙර නින්දට යාම</li>
-    </ul>
-    
-    <hr>
-    <p style="text-align: center;"><em>© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය<br>
-    ආයුබෝවන්! සැම දෙයක්ම සුභ සිද්ධ වේවා!</em></p>
-    </div>
-    """
-    
-    return report
+<h3>📋 ගණනය කරන ලද ජ්‍යොතිෂ දත්ත</h3>
+<table style="width:100%">
+    <tr><th>ගුණාංගය</th><th>විස්තරය</th></tr>
+    <tr><td>ලග්නය</td><td>{calc_data.get('lagna')}</td></tr>
+    <tr><td>නැකත</td><td>{calc_data.get('nakshathra')}</td></tr>
+    <tr><td>ගණය</td><td>{calc_data.get('gana')}</td></tr>
+    <tr><td>යෝනිය</td><td>{calc_data.get('yoni')}</td></tr>
+</table>
 
-# ==================== WhatsApp Share Function ====================
-def get_whatsapp_message(calc_data):
-    message = f"""*AstroPro SL - {calc_data.get('name')} ගේ ජන්ම පත්‍රය*
+<h3>🪐 ග්‍රහ පිහිටීම්</h3>
+<pre style="background:#0f3460; padding:10px; border-radius:10px;">
+{calc_data.get('planet_details_text', '')}
+</pre>
 
-📅 උපන් දිනය: {calc_data.get('dob')}
-⏰ උපන් වේලාව: {calc_data.get('time')}
-📍 දිස්ත්‍රික්කය: {calc_data.get('city')}
-
-*ජ්‍යොතිෂ ගණනය කිරීම්:*
-⭐ ලග්නය: {calc_data.get('lagna')}
-🌙 නැකත: {calc_data.get('nakshathra')}
-🕉️ ගණය: {calc_data.get('gana')}
-🦁 යෝනිය: {calc_data.get('yoni')}
-
----
-*AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය*
-{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
-    return message
+<p>⚠️ AI සේවාව තාවකාලිකව අක්‍රියයි. කරුණාකර පසුව නැවත උත්සාහ කරන්න.</p>
+<hr>
+<p style="text-align: center"><em>© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය</em></p>
+</div>"""
 
 # ==================== Admin Panel ====================
 def admin_panel():
@@ -479,7 +492,7 @@ def calculation_form():
                     if result:
                         st.session_state.calculation_result = result
                         st.session_state.show_calculation = True
-                        st.session_state.ai_report = None  # Reset AI report
+                        st.session_state.ai_report = None
                         
                         save_calculation_to_firebase(result)
                         st.success("✅ ගණනය කිරීම් සාර්ථකයි!")
@@ -565,15 +578,14 @@ def display_results():
         st.markdown("---")
         if st.button("🤖 AI පලාපල විස්තරය ලබාගන්න", use_container_width=True):
             st.session_state.ai_loading = True
-            with st.spinner("🤖 AI විශ්ලේෂණය කරමින්... කරුණාකර මොහොතක් රැඳී සිටින්න (තත්පර 10-15)"):
-                ai_report = get_ai_prediction_with_fallback(result)
+            with st.spinner("🤖 AI විශ්ලේෂණය කරමින්... කරුණාකර මොහොතක් රැඳී සිටින්න (තත්පර 15-20)"):
+                ai_report = get_ai_astrology_report(result)
                 st.session_state.ai_report = ai_report
                 st.session_state.ai_loading = False
                 st.rerun()
         
         # Display AI Report if available
         if st.session_state.ai_report:
-            st.markdown("### 📜 AI පලාපල වාර්තාව")
             st.markdown(st.session_state.ai_report, unsafe_allow_html=True)
             
             # Share buttons
@@ -608,7 +620,20 @@ def display_results():
                 st.markdown(href, unsafe_allow_html=True)
             
             with col2:
-                whatsapp_msg = get_whatsapp_message(result)
+                whatsapp_msg = f"""*AstroPro SL - {result['name']} ගේ ජන්ම පත්‍රය*
+
+📅 උපන් දිනය: {result['dob']}
+⏰ උපන් වේලාව: {result['time']}
+📍 දිස්ත්‍රික්කය: {result['city']}
+
+*ජ්‍යොතිෂ ගණනය කිරීම්:*
+⭐ ලග්නය: {result['lagna']}
+🌙 නැකත: {result['nakshathra']}
+🕉️ ගණය: {result['gana']}
+🦁 යෝනිය: {result['yoni']}
+
+---
+*AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය*"""
                 whatsapp_url = f"https://wa.me/?text={requests.utils.quote(whatsapp_msg)}"
                 st.markdown(f'<a href="{whatsapp_url}" target="_blank"><button style="background-color:#25D366;color:white;padding:10px;border:none;border-radius:5px;cursor:pointer;width:100%;">📱 WhatsApp</button></a>', unsafe_allow_html=True)
             
