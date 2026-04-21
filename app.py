@@ -251,23 +251,17 @@ def get_available_api_keys():
     """Get all available Gemini API keys from different sources"""
     api_keys = []
     
-    # Try to get from streamlit secrets
     try:
         for i in range(1, 4):
             key = st.secrets.get(f"GEMINI_API_KEY_{i}")
-            if key and key != "your-gemini-api-key-here" and len(key) > 10:
-                api_keys.append(key)
+            if key and key != "your-gemini-api-key-here" and len(str(key)) > 10:
+                api_keys.append(str(key))
     except:
         pass
     
-    # Try environment variables
     env_key = os.environ.get("GEMINI_API_KEY")
     if env_key and env_key not in api_keys:
         api_keys.append(env_key)
-    
-    # If no keys found, show instructions
-    if not api_keys:
-        st.session_state.api_status = "no_keys"
     
     return api_keys
 
@@ -411,9 +405,6 @@ def generate_detailed_report_without_ai(calc_data, reason=""):
 <h2>🌟 {calc_data.get('name')} {salutation} ගේ සම්පූර්ණ පලාපල වාර්තාව</h2>
 <p><small>✨ වෛදික ජ්‍යොතිෂය මත පදනම් වූ ගණනය කිරීම්<br>
 📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
-
-{"⚠️ " + reason if reason else ""}
-
 <hr>
 
 <h3>📋 1. ගණනය කරන ලද ජ්‍යොතිෂ දත්ත</h3>
@@ -423,7 +414,8 @@ def generate_detailed_report_without_ai(calc_data, reason=""):
     <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🌙 උපන් නැකත</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('nakshathra')} (අධිපති: {calc_data.get('nak_lord')})</td></tr>
     <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🕉️ ගණය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('gana')}</td></tr>
     <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🦁 යෝනිය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('yoni')}</td></tr>
-    <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>⚥ ජන්ම ලිංගය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('linga')}</td></tr>
+    <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>⚥ ජන්ම ලිංගය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('linga')}</td>
+    </tr>
 </table>
 
 <h3>🪐 2. ග්‍රහ පිහිටීම් (භාව අනුව)</h3>
@@ -480,14 +472,260 @@ def admin_panel():
     if admin_email == "sampathub89@gmail.com":
         st.success("✅ සත්‍යාපනය සාර්ථකයි!")
         
-        # Show API status
         st.subheader("🔑 API තත්ත්වය")
         api_keys = get_available_api_keys()
         if api_keys:
             st.success(f"✅ Gemini API යතුරු {len(api_keys)}ක් හමු විය")
         else:
-            st.warning("⚠️ Gemini API යතුරක් හමු නොවීය. AI පලාපල සඳහා API key එකක් සැකසීමට පහත උපදෙස් අනුගමනය කරන්න.")
-            st.info("""
-            **API Key එකක් සැකසීමට:**
-            1. https://aistudio.google.com/app/apikey වෙත ගොස් API key එකක් ලබා ගන්න
-            2. `.streamlit/secrets.toml` ගොනුව සාදන්න:
+            st.warning("⚠️ Gemini API යතුරක් හමු නොවීය")
+            st.info("API Key එකක් සැකසීමට: https://aistudio.google.com/app/apikey වෙත ගොස් API key එකක් ලබා ගන්න")
+        
+        calculations = get_admin_calculations()
+        
+        if calculations:
+            st.subheader(f"📊 සියලු ගණනය කිරීම් ({len(calculations)})")
+            
+            calc_list = []
+            for calc_id, calc in calculations.items():
+                calc_list.append({"id": calc_id, "data": calc})
+            calc_list.reverse()
+            
+            for item in calc_list[:50]:
+                calc = item["data"]
+                with st.expander(f"📅 {calc.get('timestamp', '')[:10]} - {calc.get('name', '')} ({calc.get('lagna', '')})"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**නම:** {calc.get('name', '')}")
+                        st.write(f"**ලිංගය:** {calc.get('gender', '')}")
+                        st.write(f"**උපන් දිනය:** {calc.get('dob', '')}")
+                    with col2:
+                        st.write(f"**ලග්නය:** {calc.get('lagna', '')}")
+                        st.write(f"**නැකත:** {calc.get('nakshathra', '')}")
+                        st.write(f"**යෝනිය:** {calc.get('yoni', '')}")
+        else:
+            st.info("තවමත් ගණනය කිරීම් නොමැත")
+    elif admin_email:
+        st.error("වලංගු පරිපාලක විද්‍යුත් තැපෑලක් නොවේ")
+
+# ==================== Main Calculation Form ====================
+def calculation_form():
+    st.markdown('<div class="main-header"><h1>🔮 AstroPro SL</h1><p>ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය</p></div>', unsafe_allow_html=True)
+    
+    if not get_available_api_keys():
+        st.info("💡 සම්පූර්ණ AI පලාපල වාර්තා සඳහා API key එකක් සැකසීමට පරිපාලක අමතන්න")
+    
+    with st.form("calculation_form"):
+        st.markdown("### 📝 ඔබගේ තොරතුරු")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            name = st.text_input("නම *", placeholder="ඔබගේ සම්පූර්ණ නම")
+        with col2:
+            gender = st.selectbox("ලිංගය *", ["පිරිමි", "ගැහැණු"])
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            dob = st.date_input("උපන් දිනය *", value=datetime(1995, 5, 20), min_value=datetime(1940, 1, 1), max_value=datetime(2050, 12, 31))
+        with col2:
+            hour = st.number_input("පැය (0-23)", 0, 23, 10)
+        with col3:
+            minute = st.number_input("මිනිත්තු (0-59)", 0, 59, 30)
+        
+        city = st.selectbox("දිස්ත්‍රික්කය *", list(DISTRICTS.keys()))
+        ayanamsa = st.selectbox("අයනාංශ පද්ධතිය", ["Lahiri (Chitrapaksha)", "Raman", "Krishnamurthi"])
+        
+        submitted = st.form_submit_button("🔮 කේන්දරය ගණනය කරන්න", use_container_width=True)
+        
+        if submitted:
+            if not name.strip():
+                st.error("කරුණාකර නම ඇතුළත් කරන්න")
+            else:
+                with st.spinner("ගණනය කරමින්... කරුණාකර මොහොතක් රැඳී සිටින්න"):
+                    result, error = perform_calculation(name, gender, dob, hour, minute, city, ayanamsa)
+                    
+                    if result:
+                        st.session_state.calculation_result = result
+                        st.session_state.show_calculation = True
+                        st.session_state.ai_report = None
+                        
+                        save_calculation_to_firebase(result)
+                        st.success("✅ ගණනය කිරීම් සාර්ථකයි!")
+                        
+                        st.rerun()
+                    else:
+                        st.error(f"දෝෂයක්: {error}")
+
+# ==================== Display Results ====================
+def display_results():
+    if st.session_state.calculation_result and st.session_state.show_calculation:
+        result = st.session_state.calculation_result
+        
+        st.markdown("---")
+        st.markdown("## 📊 ගණනය කිරීමේ ප්‍රතිඵල")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown(f"""
+            <div class="detail-card">
+                <small>⭐ ලග්නය</small>
+                <div class="value">{result['lagna']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="detail-card">
+                <small>🕉️ ගණය</small>
+                <div class="value">{result['gana']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+            <div class="detail-card">
+                <small>🌙 නැකත</small>
+                <div class="value">{result['nakshathra']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="detail-card">
+                <small>🦁 යෝනිය</small>
+                <div class="value">{result['yoni']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+            <div class="detail-card">
+                <small>⚥ ජන්ම ලිංගය</small>
+                <div class="value">{result['linga']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="detail-card">
+                <small>📐 අයනාංශය</small>
+                <div class="value">{result['ayanamsa'][:15]}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Planet positions
+        st.subheader("🏠 ග්‍රහ පිහිටීම් (භාව අනුව)")
+        
+        bhava_items = list(result['bhava_map'].items())
+        mid = len(bhava_items) // 2
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            for bhava, planets in bhava_items[:mid]:
+                if planets:
+                    st.markdown(f"**{bhava} වන භාවය:** {', '.join(planets)}")
+                else:
+                    st.markdown(f"**{bhava} වන භාවය:** -")
+        
+        with col2:
+            for bhava, planets in bhava_items[mid:]:
+                if planets:
+                    st.markdown(f"**{bhava} වන භාවය:** {', '.join(planets)}")
+                else:
+                    st.markdown(f"**{bhava} වන භාවය:** -")
+        
+        # AI Report Button
+        st.markdown("---")
+        if st.button("🤖 AI පලාපල විස්තරය ලබාගන්න", use_container_width=True):
+            with st.spinner("🤖 AI විශ්ලේෂණය කරමින්... කරුණාකර මොහොතක් රැඳී සිටින්න (තත්පර 15-20)"):
+                ai_report = get_ai_astrology_report(result)
+                st.session_state.ai_report = ai_report
+                st.rerun()
+        
+        # Display AI Report if available
+        if st.session_state.ai_report:
+            st.markdown(st.session_state.ai_report, unsafe_allow_html=True)
+            
+            # Share buttons
+            st.markdown("---")
+            st.markdown("#### 📤 බෙදාගන්න")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head><meta charset="UTF-8"><title>AstroPro SL - {result['name']} ගේ වාර්තාව</title>
+                <style>body{{font-family:Arial;padding:20px;}} h1{{color:#e94560;}} .report{{background:#1a1a2e;color:white;padding:20px;border-radius:15px;}}</style>
+                </head>
+                <body>
+                <h1>AstroPro SL - {result['name']} ගේ ජන්ම පත්‍රය</h1>
+                <div class="report">
+                <h2>පුද්ගලික තොරතුරු</h2>
+                <p>නම: {result['name']}<br>ලිංගය: {result['gender']}<br>උපන් දිනය: {result['dob']}<br>උපන් වේලාව: {result['time']}<br>දිස්ත්‍රික්කය: {result['city']}</p>
+                <h2>ජ්‍යොතිෂ ගණනය කිරීම්</h2>
+                <p>ලග්නය: {result['lagna']}<br>නැකත: {result['nakshathra']}<br>ගණය: {result['gana']}<br>යෝනිය: {result['yoni']}</p>
+                <h2>පලාපල විස්තරය</h2>
+                {st.session_state.ai_report}
+                </div>
+                <hr><p>© AstroPro SL - {datetime.now().strftime('%Y-%m-%d')}</p>
+                </body>
+                </html>
+                """
+                b64 = base64.b64encode(html_content.encode()).decode()
+                href = f'<a href="data:text/html;base64,{b64}" download="astro_report_{result["name"]}_{datetime.now().strftime("%Y%m%d")}.html"><button style="background-color:#4CAF50;color:white;padding:10px;border:none;border-radius:5px;cursor:pointer;width:100%;">📥 Report බාගන්න</button></a>'
+                st.markdown(href, unsafe_allow_html=True)
+            
+            with col2:
+                whatsapp_msg = f"""*AstroPro SL - {result['name']} ගේ ජන්ම පත්‍රය*
+
+📅 උපන් දිනය: {result['dob']}
+⏰ උපන් වේලාව: {result['time']}
+📍 දිස්ත්‍රික්කය: {result['city']}
+
+*ජ්‍යොතිෂ ගණනය කිරීම්:*
+⭐ ලග්නය: {result['lagna']}
+🌙 නැකත: {result['nakshathra']}
+🕉️ ගණය: {result['gana']}
+🦁 යෝනිය: {result['yoni']}
+
+---
+*AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය*"""
+                whatsapp_url = f"https://wa.me/?text={requests.utils.quote(whatsapp_msg)}"
+                st.markdown(f'<a href="{whatsapp_url}" target="_blank"><button style="background-color:#25D366;color:white;padding:10px;border:none;border-radius:5px;cursor:pointer;width:100%;">📱 WhatsApp</button></a>', unsafe_allow_html=True)
+            
+            with col3:
+                email_body = f"{whatsapp_msg}\n\n{st.session_state.ai_report[:2000]}"
+                email_url = f"mailto:?subject=AstroPro SL - {result['name']} ගේ වාර්තාව&body={requests.utils.quote(email_body)}"
+                st.markdown(f'<a href="{email_url}" target="_blank"><button style="background-color:#EA4335;color:white;padding:10px;border:none;border-radius:5px;cursor:pointer;width:100%;">📧 Email</button></a>', unsafe_allow_html=True)
+        
+        if st.button("🔄 නව ගණනය කිරීමක් සඳහා", use_container_width=True):
+            st.session_state.show_calculation = False
+            st.session_state.calculation_result = None
+            st.session_state.ai_report = None
+            st.rerun()
+
+# ==================== Main App ====================
+def main():
+    with st.sidebar:
+        st.markdown("---")
+        if st.button("👑 පරිපාලක පුවරුව", use_container_width=True):
+            st.session_state.show_admin = not st.session_state.get('show_admin', False)
+        if st.button("🏠 මුල් පිටුව", use_container_width=True):
+            st.session_state.show_admin = False
+            st.session_state.show_calculation = False
+            st.session_state.calculation_result = None
+            st.session_state.ai_report = None
+            st.rerun()
+    
+    if st.session_state.get('show_admin', False):
+        admin_panel()
+    else:
+        if not st.session_state.show_calculation:
+            calculation_form()
+        else:
+            display_results()
+    
+    st.markdown("""
+    <div class="footer">
+        © 2026 AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය<br>
+        <small>වැඩිදුර තොරතුරු සඳහා: sampathub89@gmail.com</small>
+    </div>
+    """, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
