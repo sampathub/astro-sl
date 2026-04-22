@@ -63,11 +63,61 @@ st.markdown("""
     .detail-card small { display: block; font-size: 12px; opacity: 0.8; margin-bottom: 5px; }
     .detail-card .value { font-size: 18px; }
     
+    .rashi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin: 15px 0;
+        background: linear-gradient(135deg, #0a0a2a 0%, #1a1a3e 100%);
+        padding: 20px;
+        border-radius: 20px;
+        border: 1px solid #e94560;
+    }
+    .rashi-cell {
+        background: linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%);
+        border-radius: 12px;
+        padding: 12px 8px;
+        text-align: center;
+        border: 1px solid #e94560;
+        transition: all 0.3s ease;
+    }
+    .rashi-cell:hover {
+        transform: scale(1.02);
+        box-shadow: 0 0 15px rgba(233, 69, 96, 0.3);
+    }
+    .lagna-cell {
+        background: linear-gradient(135deg, #e94560 0%, #c73550 100%);
+        border: 2px solid #ffd700;
+        box-shadow: 0 0 15px rgba(233, 69, 96, 0.5);
+    }
+    .rashi-cell strong {
+        color: #e94560;
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+    .lagna-cell strong {
+        color: #ffd700;
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+    .rashi-cell small {
+        font-size: 12px;
+        color: #aaa;
+        display: block;
+        min-height: 24px;
+    }
+    
     .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; margin-top: 30px; }
     
     @media (max-width: 768px) {
         .detail-card .value { font-size: 14px; }
         .result-card { padding: 15px; }
+        .rashi-grid { gap: 8px; padding: 10px; }
+        .rashi-cell { padding: 8px 4px; }
+        .rashi-cell strong { font-size: 11px; }
+        .rashi-cell small { font-size: 10px; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -169,6 +219,12 @@ PLANETS = [
     ("රාහු", swe.MEAN_NODE),
     ("කේතු", swe.TRUE_NODE)
 ]
+
+# ග්‍රහ සංකේත
+PLANET_SYMBOLS = {
+    "රවි": "☀️", "සඳු": "🌙", "කුජ": "♂️", "බුධ": "☿",
+    "ගුරු": "♃", "සිකුරු": "♀️", "ශනි": "♄", "රාහු": "☊", "කේතු": "☋"
+}
 
 # ==================== UTC Conversion ====================
 def convert_to_utc(year, month, day, hour, minute):
@@ -299,18 +355,192 @@ def calculate_astrology(name, gender, dob, hour, minute, city):
             "planet_positions": planet_positions,
             "planet_bhava": planet_bhava,
             "bhava_map": bhava_map,
-            "rashi_chart": rashi_chart
+            "rashi_chart": rashi_chart,
+            "jd": jd,
+            "houses": houses.tolist() if hasattr(houses, 'tolist') else list(houses)
         }, None
         
     except Exception as e:
         return None, f"දෝෂය: {str(e)}"
 
-# ==================== Gemini API with Multiple Keys (2.5 Flash) ====================
+# ==================== ශ්‍රී ලාංකීය රාශි චක්‍ර සැලැස්ම ====================
+def display_sri_lankan_rashi_chart(rashi_chart, lagna_name, planet_positions):
+    """
+    ශ්‍රී ලාංකීය සම්ප්‍රදායික රාශි චක්‍ර සැලැස්ම
+    ලග්නය 1 වන ස්ථානයේ - භාව අනුපිළිවෙලට
+    """
+    st.subheader(f"🕉️ ශ්‍රී ලාංකීය රාශි චක්‍රය (ලග්නය: {lagna_name})")
+    
+    # රාශි අනුපිළිවෙල (12 රාශි)
+    rashi_order = ["මේෂ", "වෘෂභ", "මිථුන", "කටක", "සිංහ", "කන්‍යා",
+                   "තුලා", "වෘශ්චික", "ධනු", "මකර", "කුම්භ", "මීන"]
+    
+    # ලග්නය 1 වන ස්ථානයට ගෙන ඒම
+    if lagna_name in rashi_order:
+        idx = rashi_order.index(lagna_name)
+        # ලග්නයෙන් පටන් ගන්නා අනුපිළිවෙල
+        rotated_rashi = rashi_order[idx:] + rashi_order[:idx]
+    else:
+        rotated_rashi = rashi_order
+    
+    # ශ්‍රී ලාංකීය සැලැස්ම - 4x3 Grid එක
+    # පේළි 3ක්, තීරු 4ක්
+    # පළමු පේළිය: 12, 1, 2, 3 වන ස්ථාන
+    # දෙවන පේළිය: 11, 0(ලග්න), 4, 5
+    # තෙවන පේළිය: 10, 9, 8, 7
+    
+    # ශ්‍රී ලාංකීය රාශි චක්‍ර ස්ථානගත කිරීම
+    # ලග්නය (ස්ථානය 0) මැද ඉහළින් දෙවන ස්ථානයේ
+    
+    # Grid සැකසීම
+    grid_html = """
+    <style>
+        .sl-rashi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+            background: linear-gradient(135deg, #0a0a2a 0%, #1a1a3e 100%);
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid #e94560;
+        }
+        .sl-rashi-cell {
+            background: linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%);
+            border-radius: 12px;
+            padding: 12px 8px;
+            text-align: center;
+            border: 1px solid #e94560;
+            transition: all 0.3s ease;
+        }
+        .sl-rashi-cell:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 15px rgba(233, 69, 96, 0.3);
+        }
+        .sl-lagna-cell {
+            background: linear-gradient(135deg, #e94560 0%, #c73550 100%);
+            border: 2px solid #ffd700;
+            box-shadow: 0 0 15px rgba(233, 69, 96, 0.5);
+        }
+        .sl-rashi-cell strong {
+            color: #e94560;
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .sl-lagna-cell strong {
+            color: #ffd700;
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .sl-rashi-cell small {
+            font-size: 12px;
+            color: #aaa;
+            display: block;
+            min-height: 24px;
+        }
+        .house-number {
+            font-size: 10px;
+            color: #888;
+            margin-top: 5px;
+        }
+        @media (max-width: 768px) {
+            .sl-rashi-grid { gap: 8px; padding: 10px; }
+            .sl-rashi-cell { padding: 8px 4px; }
+            .sl-rashi-cell strong { font-size: 11px; }
+            .sl-rashi-cell small { font-size: 10px; }
+        }
+    </style>
+    <div class="sl-rashi-grid">
+    """
+    
+    # භාව අංක සහ රාශි සම්බන්ධය
+    # ලග්නය 1 වන භාවයේ සිට භ්‍රමණය
+    # භාව අංක 1-12 ලග්නයෙන් පටන් ගනී
+    
+    # ශ්‍රී ලාංකීය සැලැස්මට අනුව Grid පිරවීම
+    # මෙහිදී ලග්නය (භාව 1) දෙවන පේළියේ දෙවන තීරුවේ දක්වනු ඇත
+    
+    # සියලු ස්ථාන 12 සඳහා අනුපිළිවෙල
+    # භාව 1 (ලග්නය) -> index 0
+    # භාව 2 -> index 1
+    # ...
+    # භාව 12 -> index 11
+    
+    # Grid position mapping for Sri Lankan style
+    # Row 0 (පළමු පේළිය): භාව 12, භාව 1, භාව 2, භාව 3
+    # Row 1 (දෙවන පේළිය): භාව 11, භාව 0(ලග්න), භාව 4, භාව 5
+    # Row 2 (තෙවන පේළිය): භාව 10, භාව 9, භාව 8, භාව 7
+    
+    grid_positions = [
+        (11, 0, 0),   # පේළිය 0, තීරු 0: භාව 12 (index 11)
+        (0, 0, 1),    # පේළිය 0, තීරු 1: භාව 1 (index 0) - ලග්නය
+        (1, 0, 2),    # පේළිය 0, තීරු 2: භාව 2 (index 1)
+        (2, 0, 3),    # පේළිය 0, තීරු 3: භාව 3 (index 2)
+        (10, 1, 0),   # පේළිය 1, තීරු 0: භාව 11 (index 10)
+        (0, 1, 1),    # පේළිය 1, තීරු 1: භාව 1 (index 0) - ලග්නය (දෙවන වර)
+        (3, 1, 2),    # පේළිය 1, තීරු 2: භාව 4 (index 3)
+        (4, 1, 3),    # පේළිය 1, තීරු 3: භාව 5 (index 4)
+        (9, 2, 0),    # පේළිය 2, තීරු 0: භාව 10 (index 9)
+        (8, 2, 1),    # පේළිය 2, තීරු 1: භාව 9 (index 8)
+        (7, 2, 2),    # පේළිය 2, තීරු 2: භාව 8 (index 7)
+        (6, 2, 3)     # පේළිය 2, තීරු 3: භාව 7 (index 6)
+    ]
+    
+    # Track displayed positions to avoid duplicates
+    displayed = set()
+    current_row = -1
+    
+    for bhava_index, row, col in grid_positions:
+        if row != current_row:
+            if current_row != -1:
+                grid_html += '</div><div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12px;">'
+            else:
+                grid_html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">'
+            current_row = row
+        
+        rashi = rotated_rashi[bhava_index % 12]
+        bhava_num = bhava_index + 1
+        
+        # Get planets in this rashi
+        planets = rashi_chart.get(rashi, [])
+        if planets is None:
+            planets = []
+        
+        # Display planet symbols
+        planet_symbols_list = []
+        for p in planets[:4]:
+            if p and isinstance(p, str):
+                short = p.split(' (')[0]
+                planet_symbols_list.append(PLANET_SYMBOLS.get(short, "●"))
+        
+        display_text = " ".join(planet_symbols_list) if planet_symbols_list else "—"
+        
+        is_lagna = (bhava_num == 1)
+        cell_class = "sl-lagna-cell" if is_lagna else "sl-rashi-cell"
+        
+        if bhava_num not in displayed:
+            displayed.add(bhava_num)
+            grid_html += f'''
+            <div class="{cell_class}">
+                <strong>{rashi}</strong>
+                <small>{display_text}</small>
+                <div class="house-number">භාව {bhava_num}</div>
+            </div>
+            '''
+    
+    grid_html += '</div></div>'
+    st.markdown(grid_html, unsafe_allow_html=True)
+    
+    # ලග්නය පිළිබඳ සටහන
+    st.caption(f"📌 {lagna_name} ලග්නය - 1 වන භාවය (අධිපති: {RA_LORDS[rashi_order.index(lagna_name)]})")
+
+# ==================== Gemini API with Multiple Keys ====================
 def get_available_api_keys():
     """Get all Gemini API keys from secrets"""
     api_keys = []
     try:
-        # Try to get from st.secrets (Streamlit Cloud)
         for i in range(1, 4):
             key = st.secrets.get(f"GEMINI_API_KEY_{i}")
             if key and key != "your-gemini-api-key-here" and len(str(key)) > 10:
@@ -318,7 +548,6 @@ def get_available_api_keys():
     except:
         pass
     
-    # Try environment variable
     env_key = os.environ.get("GEMINI_API_KEY")
     if env_key and env_key not in api_keys:
         api_keys.append(env_key)
@@ -326,7 +555,7 @@ def get_available_api_keys():
     return api_keys
 
 def get_detailed_astrology_report(calc_data):
-    """Generate detailed astrology report using Gemini API 2.5 Flash"""
+    """Generate detailed astrology report using Gemini API"""
     
     api_keys = get_available_api_keys()
     
@@ -352,84 +581,36 @@ def get_detailed_astrology_report(calc_data):
             bhava_list.append(f"• {bhava} වන භාවය: කිසිදු ග්‍රහයෙක් නැත")
     bhava_text = "\n".join(bhava_list)
     
-    # Detailed prompt for Gemini 2.5 Flash
-    prompt = f"""ඔබ ශ්‍රී ලංකාවේ ඉතා ප්‍රසිද්ධ හා පළපුරුදු වෛදික ජ්‍යොතිෂවේදියෙකි. පහත දක්වා ඇති ගණනය කරන ලද ජ්‍යොතිෂ දත්ත මත පදනම්ව ඉතා සවිස්තරාත්මක, වෘත්තීය පලාපල වාර්තාවක් සිංහලෙන් සකස් කරන්න.
+    prompt = f"""ඔබ ශ්‍රී ලංකාවේ ඉතා ප්‍රසිද්ධ වෛදික ජ්‍යොතිෂවේදියෙකි. පහත දත්ත මත පදනම්ව සවිස්තරාත්මක පලාපල වාර්තාවක් සිංහලෙන් ලියන්න.
 
-═══════════════════════════════════════
-📊 ගණනය කරන ලද ජ්‍යොතිෂ දත්ත
-═══════════════════════════════════════
+📊 දත්ත:
+නම: {calc_data.get('name')}
+ලිංගය: {calc_data.get('gender')}
+උපන් දිනය: {calc_data.get('dob')}
+උපන් වේලාව: {calc_data.get('time')}
+ස්ථානය: {calc_data.get('city')}
+ලග්නය: {calc_data.get('lagna')} ({calc_data.get('lagna_lord')})
+නැකත: {calc_data.get('nakshathra')} (පාදය {calc_data.get('nak_pada')}, {calc_data.get('nak_lord')})
+ගණය: {calc_data.get('nak_gana')}
+යෝනිය: {calc_data.get('nak_yoni')}
 
-👤 පුද්ගලික තොරතුරු:
-   • නම: {calc_data.get('name')}
-   • ලිංගය: {calc_data.get('gender')}
-   • උපන් දිනය: {calc_data.get('dob')}
-   • උපන් වේලාව: {calc_data.get('time')} (ශ්‍රී ලංකාව)
-   • උපන් ස්ථානය: {calc_data.get('city')}
-
-⭐ ලග්න තොරතුරු:
-   • ලග්නය: {calc_data.get('lagna')}
-   • ලග්නාධිපති ග්‍රහයා: {calc_data.get('lagna_lord')}
-   • ලග්න අංශක: {calc_data.get('lagna_degree')}°
-
-🌙 නැකත් තොරතුරු:
-   • උපන් නැකත: {calc_data.get('nakshathra')} (පාදය {calc_data.get('nak_pada')})
-   • නැකත් අධිපති ග්‍රහයා: {calc_data.get('nak_lord')}
-   • ගණය: {calc_data.get('nak_gana')}
-   • යෝනිය: {calc_data.get('nak_yoni')}
-   • ජන්ම ලිංගය: {calc_data.get('nak_linga')}
-
-🪐 ග්‍රහ පිහිටීම් (රාශි සහ භාව අනුව):
+ග්‍රහ පිහිටීම්:
 {planet_text}
 
-🏠 භාව වල ග්‍රහ පිහිටීම් සාරාංශය:
-{bhava_text}
+මෙම දත්ත මත පදනම්ව:
+1. නැකතේ ස්වභාවය
+2. ලග්නයේ බලපෑම
+3. සුදුසු වෘත්තීන්
+4. චරිතය
+5. සෞඛ්‍යය සහ විවාහය ගැන
+6. පිළියම් සහ උපදෙස්
 
-═══════════════════════════════════════
+වාර්තාව සිංහලෙන් ලියන්න."""
 
-මෙම දත්ත මත පදනම්ව පහත සඳහන් කරුණු ඇතුළත් සම්පූර්ණ පලාපල වාර්තාවක් ඉතා සවිස්තරාත්මකව සිංහලෙන් ලියන්න:
-
-1. 📖 **උපන් නැකතේ ස්වභාවය, ගුණාංග සහ බලපෑම**
-   - නැකතේ සාමාන්‍ය ලක්ෂණ
-   - ඔබගේ පෞරුෂත්වයට ඇති බලපෑම
-   - නැකතේ වාසි සහ අවාසි
-
-2. ⭐ **ලග්නයේ බලපෑම සහ පෞරුෂත්වය**
-   - ලග්නයේ ස්වභාවය
-   - ලග්නාධිපතිගේ බලපෑම
-   - ඔබගේ චරිත ලක්ෂණ
-
-3. 📚 **අධ්‍යාපනය, බුද්ධි හැකියාව සහ වෘත්තිය**
-   - බුධ ග්‍රහයාගේ පිහිටීම අනුව බුද්ධි හැකියාව
-   - 10 වන භාවයේ ග්‍රහයින් අනුව වෘත්තීය සාර්ථකත්වය
-   - සුදුසුම වෘත්තීන් සහ රැකියා ක්ෂේත්‍ර
-
-4. 💑 **සමාජ සම්බන්ධතා, විවාහ සහ පවුල් ජීවිතය**
-   - 7 වන භාවයේ ග්‍රහයින් අනුව විවාහ ජීවිතය
-   - සිකුරු ග්‍රහයාගේ බලපෑම
-   - පවුල් සබඳතා
-
-5. 🏥 **සෞඛ්‍ය තත්ත්වය**
-   - ලග්නාධිපතිගේ සහ සෞඛ්‍ය භාවයේ ග්‍රහයින්ගේ බලපෑම
-   - විශේෂ අවධානය යොමු කළ යුතු සෞඛ්‍ය කරුණු
-
-6. 🔮 **ඉදිරි කාලය පිළිබඳ අනාවැකි**
-   - වත්මන් ග්‍රහ චාරවල බලපෑම
-   - ඉදිරි මාස 6-12 සඳහා විශේෂ අවධානය
-
-7. 🙏 **පිළියම්, මන්ත්‍ර සහ උපදෙස්**
-   - නැකත් අධිපතිට විශේෂ මන්ත්‍ර
-   - දෛනික පිළියම්
-   - දන් දීම සහ පූජා
-   - රත්න සහ වර්ණ උපදෙස්
-
-වාර්තාව ඉතා විස්තරාත්මකව, ප්‍රායෝගිකව සහ ශ්‍රී ලාංකීය ජ්‍යොතිෂ සම්ප්‍රදායට අනුකූලව ලියන්න. අවම වශයෙන් පිටු 2-3ක් වන පරිදි සවිස්තරාත්මකව ලියන්න."""
-
-    # Try each API key with gemini-2.5-flash model
     for i, api_key in enumerate(api_keys, 1):
         try:
             genai.configure(api_key=api_key)
-            # Using gemini-2.5-flash (latest model)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
             with st.spinner(f"🤖 AI විශ්ලේෂණය කරමින්... (API Key {i})"):
                 response = model.generate_content(prompt)
@@ -438,14 +619,13 @@ def get_detailed_astrology_report(calc_data):
                 st.session_state.api_working = True
                 return f"""<div class="result-card">
 <h2>🌟 {calc_data.get('name')} {salutation} ගේ සම්පූර්ණ පලාපල වාර්තාව</h2>
-<p><small>✨ වෛදික ජ්‍යොතිෂය මත පදනම් වූ ගණනය කිරීම් (Lahiri Ayanamsa)<br>
+<p><small>✨ වෛදික ජ්‍යොතිෂය (Lahiri Ayanamsa)<br>
 📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br>
-🤖 AI බලයෙන් සම්පාදිතය - Gemini 2.5 Flash</small></p>
+🤖 AI බලයෙන් සම්පාදිතය</small></p>
 <hr>
 {response.text}
 <hr>
 <p style="text-align: center"><em>© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය<br>
-🔮 Lahiri Ayanamsa - UTC පරිවර්තනය<br>
 🌺 සත්‍යය සහ ධර්මය ජය වේවා!</em></p>
 </div>"""
         except Exception as e:
@@ -453,10 +633,9 @@ def get_detailed_astrology_report(calc_data):
             continue
     
     st.session_state.api_working = False
-    st.error("❌ සියලුම API Keys අසාර්ථක විය. කරුණාකර පසුව නැවත උත්සාහ කරන්න.")
     return generate_fallback_report(calc_data)
 
-# ==================== Fallback Report (without AI) ====================
+# ==================== Fallback Report ====================
 def generate_fallback_report(calc_data):
     salutation = "මහතා" if calc_data.get('gender') == "පිරිමි" else "මහත්මිය"
     
@@ -477,96 +656,19 @@ def generate_fallback_report(calc_data):
     professions = profession_suggestions.get(calc_data.get('lagna', ''), "විවිධ ක්ෂේත්‍ර")
     
     return f"""<div class="result-card">
-<h2>🌟 {calc_data.get('name')} {salutation} ගේ සම්පූර්ණ පලාපල වාර්තාව</h2>
-<p><small>✨ Lahiri Ayanamsa - ශ්‍රී ලාංකීය ජ්‍යොතිෂ ක්‍රමය<br>
-📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
+<h2>🌟 {calc_data.get('name')} {salutation} ගේ පලාපල වාර්තාව</h2>
 <hr>
-
-<h3>📋 1. ජ්‍යොතිෂ දත්ත</h3>
-<table style="width:100%; border-collapse:collapse;">
-    <tr><th style="background:#e94560; padding:10px; text-align:left;">ගුණාංගය</th><th style="background:#e94560; padding:10px; text-align:left;">විස්තරය</th></tr>
-    <tr><td style="padding:8px;"><strong>⭐ ලග්නය</strong></td><td style="padding:8px;">{calc_data.get('lagna')} (අධිපති: {calc_data.get('lagna_lord')})<br><small>{calc_data.get('lagna_degree', 0)}°</small></td></tr>
-    <tr><td style="padding:8px;"><strong>🌙 නැකත</strong></td><td style="padding:8px;">{calc_data.get('nakshathra')} (පාදය {calc_data.get('nak_pada')})<br>අධිපති: {calc_data.get('nak_lord')}</td></tr>
-    <tr><td style="padding:8px;"><strong>🕉️ ගණය</strong></td><td style="padding:8px;">{calc_data.get('nak_gana')}</td></tr>
-    <tr><td style="padding:8px;"><strong>🦁 යෝනිය</strong></td><td style="padding:8px;">{calc_data.get('nak_yoni')}</td></tr>
-    <tr><td style="padding:8px;"><strong>⚥ ජන්ම ලිංගය</strong></td><td style="padding:8px;">{calc_data.get('nak_linga')}</td></tr>
-</table>
-
-<h3>🪐 2. ග්‍රහ පිහිටීම්</h3>
-<ul>
-"""
-    for planet, data in calc_data.get('planet_positions', {}).items():
-        bhava = calc_data.get('planet_bhava', {}).get(planet, '?')
-        report_line = f"<li><strong>{planet}:</strong> {data['rashi']} රාශියේ - {bhava} වන භාවයේ ({data['degree']:.2f}°)</li>"
-        # Handle string length correctly
-        if len(report_line) < 1000:
-            report_line = report_line
-    
-    report = f"""
-</ul>
-
-<h3>💼 3. සුදුසු වෘත්තීන්</h3>
+<h3>📋 {calc_data.get('nakshathra')} නැකත</h3>
+<p>{calc_data.get('nak_gana')} ගණය, {calc_data.get('nak_yoni')} යෝනිය. අධිපති: {calc_data.get('nak_lord')}</p>
+<h3>⭐ {calc_data.get('lagna')} ලග්නය</h3>
+<p>අධිපති: {calc_data.get('lagna_lord')}</p>
+<h3>💼 සුදුසු වෘත්තීන්</h3>
 <p><strong>{professions}</strong></p>
-
-<h3>🙏 4. පිළියම් සහ උපදෙස්</h3>
-<ul>
-<li><strong>"ඕම් {calc_data.get('nak_lord')}වේ නමඃ"</strong> මන්ත්‍රය දිනපතා ජප කිරීම</li>
-<li>සෑම බ්‍රහස්පතින්දා පන්සල් ගොස් බුද්ධ පූජා පැවැත්වීම</li>
-<li>කහ පැහැති මල් පූජා කිරීම සුබයි</li>
-<li>දරුවන්ට සහ අවශ්‍යතා ඇති අයට උදව් කිරීම</li>
-</ul>
-
+<h3>🙏 පිළියම්</h3>
+<p>"ඕම් {calc_data.get('nak_lord')}වේ නමඃ" මන්ත්‍රය ජප කරන්න.</p>
 <hr>
-<p style="text-align: center"><em>© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය<br>
-🔮 Lahiri Ayanamsa - UTC පරිවර්තනය<br>
-🌺 ආයුබෝවන්! සැම දෙයක්ම සුභ සිද්ධ වේවා!</em></p>
+<p style="text-align:center">© AstroPro SL - Lahiri Ayanamsa</p>
 </div>"""
-    
-    return report
-
-# ==================== Display Rashi Chart ====================
-def display_rashi_chart(rashi_chart, lagna_name):
-    st.subheader(f"🕉️ රාශි චක්‍රය (ලග්නය: {lagna_name})")
-    
-    rashi_order = ["මේෂ", "වෘෂභ", "මිථුන", "කටක", "සිංහ", "කන්‍යා",
-                   "තුලා", "වෘශ්චික", "ධනු", "මකර", "කුම්භ", "මීන"]
-    
-    if lagna_name in rashi_order:
-        idx = rashi_order.index(lagna_name)
-        rotated = rashi_order[idx:] + rashi_order[:idx]
-    else:
-        rotated = rashi_order
-    
-    symbols = {"රවි": "☀️", "සඳු": "🌙", "කුජ": "♂️", "බුධ": "☿",
-               "ගුරු": "♃", "සිකුරු": "♀️", "ශනි": "♄", "රාහු": "☊", "කේතු": "☋"}
-    
-    st.markdown('<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0;">', unsafe_allow_html=True)
-    
-    for i, rashi in enumerate(rotated):
-        planets = rashi_chart.get(rashi, [])
-        if planets is None:
-            planets = []
-        
-        planet_symbols = []
-        for p in planets[:3]:
-            if p and isinstance(p, str):
-                short = p.split(' (')[0]
-                planet_symbols.append(symbols.get(short, "●"))
-        
-        display = " ".join(planet_symbols) if planet_symbols else "—"
-        is_lagna = (i == 0)
-        bg = "#e94560" if is_lagna else "#0f3460"
-        border = "2px solid #ffd700" if is_lagna else "1px solid #e94560"
-        text_color = "#ffd700" if is_lagna else "#e94560"
-        
-        st.markdown(f'''
-        <div style="background:{bg}; border-radius:10px; padding:10px; text-align:center; border:{border};">
-            <strong style="color:{text_color}; display:block; margin-bottom:5px;">{rashi}</strong>
-            <small style="color:#f0f0f0;">{display}</small>
-        </div>
-        ''', unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ==================== Display Results ====================
 def display_results():
@@ -588,7 +690,8 @@ def display_results():
     with col4:
         st.markdown(f'<div class="detail-card"><small>🦁 යෝනිය</small><div class="value">{r["nak_yoni"]}</div></div>', unsafe_allow_html=True)
     
-    display_rashi_chart(r["rashi_chart"], r["lagna"])
+    # ශ්‍රී ලාංකීය රාශි චක්‍ර සැලැස්ම
+    display_sri_lankan_rashi_chart(r["rashi_chart"], r["lagna"], r["planet_positions"])
     
     st.subheader("🏠 ග්‍රහ පිහිටීම් (භාව අනුව)")
     bhava_items = list(r["bhava_map"].items())
@@ -602,7 +705,8 @@ def display_results():
     
     with st.expander("🔭 ග්‍රහයින්ගේ සම්පූර්ණ දේශාංශ"):
         for planet, data in r["planet_positions"].items():
-            st.write(f"**{planet}:** {data['rashi']} රාශියේ {data['degree']:.2f}°")
+            bhava = r["planet_bhava"].get(planet, '?')
+            st.write(f"**{planet}:** {data['rashi']} රාශියේ, {bhava} වන භාවයේ - {data['degree']:.2f}°")
     
     st.markdown("---")
     if st.button("🤖 සම්පූර්ණ AI පලාපල විස්තරය ලබාගන්න", use_container_width=True):
@@ -673,7 +777,7 @@ def main():
     <div class="footer">
         © 2026 AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය<br>
         <small>📐 Lahiri Ayanamsa | ⏰ UTC පරිවර්තනය | 📅 1950-2040<br>
-        🤖 AI බලයෙන් - Gemini 2.5 Flash</small>
+        🕉️ ශ්‍රී ලාංකීය රාශි චක්‍ර සැලැස්ම | 🤖 AI බලයෙන්</small>
     </div>
     """, unsafe_allow_html=True)
 
