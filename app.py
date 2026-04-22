@@ -8,7 +8,6 @@ import uuid
 import base64
 import time
 import os
-import pytz
 
 # ==================== Page Configuration ====================
 st.set_page_config(
@@ -213,42 +212,50 @@ PLANETS = [
 def convert_to_utc(local_datetime, local_hour, local_minute):
     """
     ශ්‍රී ලංකා වේලාව (GMT+5:30) UTC බවට පරිවර්තනය කරයි
+    pytz නැතිව වැඩ කරයි - built-in datetime සමග
     """
-    try:
-        # ශ්‍රී ලංකා timezone සකසන්න
-        sri_lanka_tz = pytz.timezone('Asia/Colombo')
+    # ශ්‍රී ලංකාව GMT+5:30 වේ
+    # UTC = Local - 5:30
+    
+    total_local_minutes = local_hour * 60 + local_minute
+    total_utc_minutes = total_local_minutes - (5 * 60 + 30)  # Subtract 5 hours 30 minutes
+    
+    if total_utc_minutes < 0:
+        total_utc_minutes += 24 * 60
+        utc_day = local_datetime.day - 1
+        utc_month = local_datetime.month
+        utc_year = local_datetime.year
         
-        # local datetime object එකක් සාදන්න
-        local_dt = datetime(local_datetime.year, local_datetime.month, local_datetime.day, 
-                           local_hour, local_minute)
-        
-        # timezone එක localize කරන්න
-        local_dt = sri_lanka_tz.localize(local_dt)
-        
-        # UTC බවට පරිවර්තනය කරන්න
-        utc_dt = local_dt.astimezone(pytz.UTC)
-        
-        # Julian Day එක ගණනය කරන්න
-        jd = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, 
-                        utc_dt.hour + utc_dt.minute/60.0)
-        
-        return jd, utc_dt
-    except Exception as e:
-        # Fallback: manual conversion (GMT+5:30 to UTC)
-        utc_hour = local_hour - 5
-        utc_minute = local_minute - 30
-        if utc_minute < 0:
-            utc_minute += 60
-            utc_hour -= 1
-        if utc_hour < 0:
-            utc_hour += 24
-            utc_day = local_datetime.day - 1
-        else:
-            utc_day = local_datetime.day
-        
-        jd = swe.julday(local_datetime.year, local_datetime.month, utc_day, 
-                        utc_hour + utc_minute/60.0)
-        return jd, None
+        # Month/year rollback if needed
+        if utc_day < 1:
+            # Go to previous month
+            if utc_month == 1:
+                utc_month = 12
+                utc_year -= 1
+            else:
+                utc_month -= 1
+            # Get days in previous month
+            if utc_month in [1, 3, 5, 7, 8, 10, 12]:
+                utc_day = 31
+            elif utc_month in [4, 6, 9, 11]:
+                utc_day = 30
+            else:  # February
+                if (utc_year % 4 == 0 and utc_year % 100 != 0) or (utc_year % 400 == 0):
+                    utc_day = 29
+                else:
+                    utc_day = 28
+    else:
+        utc_day = local_datetime.day
+        utc_month = local_datetime.month
+        utc_year = local_datetime.year
+    
+    utc_hour = total_utc_minutes // 60
+    utc_minute = total_utc_minutes % 60
+    
+    # Julian Day ගණනය කිරීම
+    jd = swe.julday(utc_year, utc_month, utc_day, utc_hour + utc_minute/60.0)
+    
+    return jd, (utc_year, utc_month, utc_day, utc_hour, utc_minute)
 
 def get_planet_bhava(planet_lon, cusps):
     """
@@ -258,12 +265,10 @@ def get_planet_bhava(planet_lon, cusps):
         start = cusps[i]
         end = cusps[(i + 1) % 12]
         
-        # භාවයන් 0-360 අතර වේ
         if start <= end:
             if start <= planet_lon < end:
                 return i + 1
         else:
-            # 0 ඉක්මවන අවස්ථාව
             if planet_lon >= start or planet_lon < end:
                 return i + 1
     return 1
@@ -276,7 +281,6 @@ def get_nakshatra_from_longitude(lon):
     nak_angle = 360.0 / 27.0  # 13.3333333333
     nak_index = int(lon / nak_angle) % 27
     
-    # නැකතේ ආරම්භක කෝණය සහ අවසාන කෝණය
     nak_start = nak_index * nak_angle
     nak_end = nak_start + nak_angle
     
@@ -289,14 +293,9 @@ def calculate_rashi_chart(planet_longitudes, lagna_rashi):
     """
     රාශි චක්‍රය සකස් කරයි
     """
-    # රාශි 12 ක් සඳහා හිස් අරාවක්
     rashi_chart = {i+1: {"sign": RA_NAMES[i], "lord": RA_LORDS[i], "planets": []} 
                    for i in range(12)}
     
-    # ලග්නය සැකසීම - ලග්නය 1 වන භාවය වේ
-    lagnaa_index = lagna_rashi
-    
-    # ග්‍රහයින් රාශි වලට යොදන්න
     for planet_name, lon in planet_longitudes.items():
         rashi_index = int(lon / 30) % 12
         rashi_chart[rashi_index + 1]["planets"].append(planet_name)
@@ -309,11 +308,10 @@ def perform_calculation(name, gender, dob, hour, minute, city):
     """
     සම්පූර්ණ ජ්‍යොතිෂ ගණනය කිරීම් සිදු කරයි
     ශ්‍රී ලංකාවේ භාවිතා වන Lahiri Ayanamsa පමණක් භාවිතා කරයි
-    UTC වලට පරිවර්තනය කර ගණනය කරයි
     """
     try:
         # 1. UTC බවට පරිවර්තනය කර Julian Day ලබා ගන්න
-        jd, utc_dt = convert_to_utc(dob, hour, minute)
+        jd, utc_info = convert_to_utc(dob, hour, minute)
         
         # 2. Lahiri Ayanamsa පමණක් භාවිතා කරන්න (Sri Lankan system)
         swe.set_sid_mode(swe.SIDM_LAHIRI)
@@ -324,7 +322,7 @@ def perform_calculation(name, gender, dob, hour, minute, city):
         # 4. භාව සහ ලග්නය ගණනය කිරීම
         houses, ascmc = swe.houses_ex(jd, lat, lon, b'P', swe.FLG_SIDEREAL)
         
-        # 5. ලග්න රාශිය (ascmc[0] = Lagna longitude)
+        # 5. ලග්න රාශිය
         lagna_lon = ascmc[0]
         lagna_rashi = int(lagna_lon / 30) % 12
         lagna_name = RA_NAMES[lagna_rashi]
@@ -338,20 +336,18 @@ def perform_calculation(name, gender, dob, hour, minute, city):
         moon_lon = 0
         
         for p_name, p_id in PLANETS:
-            # Siderial ගණනය කිරීම් සඳහා FLG_SIDEREAL භාවිතා කරන්න
             res, _ = swe.calc_ut(jd, p_id, swe.FLG_SIDEREAL)
-            lon = res[0]
-            planet_longitudes[p_name] = lon
+            lon_val = res[0]
+            planet_longitudes[p_name] = lon_val
             
             if p_id == swe.MOON:
-                moon_lon = lon
+                moon_lon = lon_val
             
-            # ග්‍රහයා පිහිටි භාවය
-            p_bhava = get_planet_bhava(lon, houses)
+            p_bhava = get_planet_bhava(lon_val, houses)
             planet_bhava_details[p_name] = p_bhava
             bhava_map[p_bhava].append(p_name)
         
-        # 7. නැකත ගණනය කිරීම (චන්ද්‍රයාගේ පිහිටීම අනුව)
+        # 7. නැකත ගණනය කිරීම
         nak_index, pada_index, nak_start, nak_end = get_nakshatra_from_longitude(moon_lon)
         nak_name = NAK_NAMES[nak_index]
         nak_lord = NAK_LORDS[nak_index]
@@ -359,7 +355,7 @@ def perform_calculation(name, gender, dob, hour, minute, city):
         nak_yoni = NAK_YONI[nak_index]
         nak_linga = NAK_LINGA[nak_index]
         
-        # 8. රාශි චක්‍රය ගණනය කිරීම
+        # 8. රාශි චක්‍රය
         rashi_chart = calculate_rashi_chart(planet_longitudes, lagna_rashi)
         
         # 9. ප්‍රතිඵල සකස් කිරීම
@@ -368,11 +364,7 @@ def perform_calculation(name, gender, dob, hour, minute, city):
             "gender": gender,
             "dob": dob.strftime("%Y-%m-%d"),
             "time": f"{hour:02d}:{minute:02d}",
-            "time_utc": utc_dt.strftime("%Y-%m-%d %H:%M:%S") if utc_dt else "Calculated",
             "city": city,
-            "latitude": lat,
-            "longitude": lon,
-            "julian_day": jd,
             "lagna": lagna_name,
             "lagna_lord": lagna_lord,
             "lagna_lon": round(lagna_lon, 2),
@@ -428,7 +420,6 @@ def get_ai_astrology_report(calc_data):
     
     salutation = "මහතා" if calc_data.get('gender') == "පිරිමි" else "මහත්මිය"
     
-    # Prepare planet positions
     planet_list = []
     for planet, bhava in calc_data.get('planet_bhava_details', {}).items():
         lon = calc_data.get('planet_longitudes', {}).get(planet, 0)
@@ -436,46 +427,29 @@ def get_ai_astrology_report(calc_data):
         planet_list.append(f"   • {planet} - {rashi} රාශියේ, {bhava} වන භාවයේ")
     planet_text = "\n".join(planet_list)
     
-    prompt = f"""ඔබ ශ්‍රී ලංකාවේ ප්‍රමුඛතම වෛදික ජ්‍යොතිෂවේදියෙකු ලෙස ක්‍රියා කරන්න. පහත දක්වා ඇති නිවැරදිව ගණනය කරන ලද ජ්‍යොතිෂ දත්ත මත පදනම්ව ඉතා සවිස්තරාත්මක, වෘත්තීය පලාපල වාර්තාවක් සිංහලෙන් සකස් කරන්න.
+    prompt = f"""ඔබ ශ්‍රී ලංකාවේ ප්‍රමුඛතම වෛදික ජ්‍යොතිෂවේදියෙකු ලෙස ක්‍රියා කරන්න. පහත දත්ත මත පදනම්ව සවිස්තරාත්මක පලාපල වාර්තාවක් සිංහලෙන් සකස් කරන්න.
 
-═══════════════════════════════════════
-📊 ගණනය කරන ලද ජ්‍යොතිෂ දත්ත
-═══════════════════════════════════════
+📊 ජ්‍යොතිෂ දත්ත:
+නම: {calc_data.get('name')}
+ලිංගය: {calc_data.get('gender')}
+උපන් දිනය: {calc_data.get('dob')}
+උපන් වේලාව: {calc_data.get('time')}
+උපන් ස්ථානය: {calc_data.get('city')}
+ලග්නය: {calc_data.get('lagna')} (අධිපති: {calc_data.get('lagna_lord')})
+නැකත: {calc_data.get('nakshathra')} (පාදය {calc_data.get('nak_pada')}, අධිපති: {calc_data.get('nak_lord')})
+ගණය: {calc_data.get('nak_gana')}, යෝනිය: {calc_data.get('nak_yoni')}
 
-👤 පුද්ගලික තොරතුරු:
-   • නම: {calc_data.get('name')}
-   • ලිංගය: {calc_data.get('gender')}
-   • උපන් දිනය: {calc_data.get('dob')}
-   • උපන් වේලාව: {calc_data.get('time')} (ශ්‍රී ලංකාව)
-   • උපන් ස්ථානය: {calc_data.get('city')}
-
-⭐ ලග්න තොරතුරු:
-   • ලග්නය: {calc_data.get('lagna')}
-   • ලග්නාධිපති ග්‍රහයා: {calc_data.get('lagna_lord')}
-
-🌙 නැකත් තොරතුරු:
-   • උපන් නැකත: {calc_data.get('nakshathra')} (පාදය {calc_data.get('nak_pada')})
-   • නැකත් අධිපති ග්‍රහයා: {calc_data.get('nak_lord')}
-   • ගණය: {calc_data.get('nak_gana')}
-   • යෝනිය: {calc_data.get('nak_yoni')}
-   • ජන්ම ලිංගය: {calc_data.get('nak_linga')}
-
-🪐 ග්‍රහ පිහිටීම්:
+ග්‍රහ පිහිටීම්:
 {planet_text}
 
-═══════════════════════════════════════
-
-මෙම දත්ත මත පදනම්ව පහත සඳහන් කරුණු ඇතුළත් සම්පූර්ණ පලාපල වාර්තාවක් ලියන්න:
-
-1. උපන් නැකතේ ස්වභාවය, ගුණාංග සහ එහි බලපෑම
-2. ලග්නයේ බලපෑම සහ පෞරුෂත්වය
-3. අධ්‍යාපනය, බුද්ධි හැකියාව සහ සුදුසු වෘත්තීන්
-4. සමාජ සම්බන්ධතා, විවාහ සහ පවුල් ජීවිතය
-5. සෞඛ්‍ය තත්ත්වය සහ විශේෂ සැලකිල්ල
-6. ඉදිරි කාලය පිළිබඳ අනාවැකි
-7. පිළියම්, මන්ත්‍ර සහ උපදෙස්
-
-වාර්තාව ඉතා විස්තරාත්මකව, වෘත්තීයව සහ ශ්‍රී ලාංකීය ජ්‍යොතිෂ සම්ප්‍රදායට අනුකූලව ලියන්න."""
+පහත කරුණු ඇතුළත් වාර්තාවක් ලියන්න:
+1. නැකතේ ස්වභාවය
+2. ලග්නයේ බලපෑම
+3. අධ්‍යාපනය සහ වෘත්තිය
+4. විවාහ සහ පවුල් ජීවිතය
+5. සෞඛ්‍යය
+6. අනාවැකි
+7. පිළියම්"""
 
     for api_key in api_keys:
         try:
@@ -485,14 +459,11 @@ def get_ai_astrology_report(calc_data):
             if response and response.text:
                 st.session_state.api_status = "success"
                 return f"""<div class="result-card">
-<h2>🌟 {calc_data.get('name')} {salutation} ගේ සම්පූර්ණ පලාපල වාර්තාව</h2>
-<p><small>✨ වෛදික ජ්‍යොතිෂය මත පදනම් වූ ගණනය කිරීම් (Lahiri Ayanamsa)<br>
-📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
+<h2>🌟 {calc_data.get('name')} {salutation} ගේ පලාපල වාර්තාව</h2>
 <hr>
 {response.text}
 <hr>
-<p style="text-align: center"><em>© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය<br>
-🔮 සත්‍යය සහ ධර්මය ජය වේවා!</em></p>
+<p style="text-align: center"><em>© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය (Lahiri Ayanamsa)</em></p>
 </div>"""
         except Exception as e:
             continue
@@ -505,41 +476,38 @@ def generate_detailed_report_without_ai(calc_data):
     
     salutation = "මහතා" if calc_data.get('gender') == "පිරිමි" else "මහත්මිය"
     
-    # Profession suggestions based on lagna
     profession_suggestions = {
-        "මේෂ": "හමුදාව, පොලිසිය, ඉංජිනේරු, ශල්ය වෛද්‍ය, ක්‍රීඩා, ව්‍යාපාර",
-        "වෘෂභ": "බැංකු, මූල්ය, කලාව, සංගීතය, ආහාරපාන කර්මාන්තය",
-        "මිථුන": "මාධ්‍ය, සන්නිවේදන, ලේඛන, අලෙවිකරණ, ගුරු වෘත්තිය",
-        "කටක": "සත්කාරක, ඉගැන්වීම, බැංකු, දේපළ වෙළඳාම, සෞඛ්‍ය",
-        "සිංහ": "දේශපාලනය, කළමනාකරණ, රංගනය, ව්‍යාපාරික නායකත්වය",
-        "කන්‍යා": "ගණකාධිකරණ, වෛද්‍ය, පර්යේෂණ, ලේඛන, සංඛ්‍යාන",
-        "තුලා": "නීතිය, රාජ්‍යතාන්ත්‍රික, විනිශ්චය, කලාව, විලාසිතා",
-        "වෘශ්චික": "පර්යේෂණ, රහස් පරීක්ෂණ, මනෝවිද්‍යාව, ශල්ය වෛද්‍ය",
-        "ධනු": "නීතිය, ඉගැන්වීම, ප්‍රකාශන, විදේශ සේවා, සංචාරක",
-        "මකර": "ඉංජිනේරු, කළමනාකරණ, දේපළ වෙළඳාම, කෘෂිකර්ම",
-        "කුම්භ": "තාක්ෂණය, පර්යේෂණ, ජ්‍යොතිෂය, සමාජ සේවා",
-        "මීන": "කලාව, සංගීතය, නැටුම්, අධ්‍යාත්මික, සාගර කටයුතු"
+        "මේෂ": "හමුදාව, පොලිසිය, ඉංජිනේරු, ශල්ය වෛද්‍ය, ක්‍රීඩා",
+        "වෘෂභ": "බැංකු, මූල්ය, කලාව, සංගීතය, ආහාරපාන",
+        "මිථුන": "මාධ්‍ය, සන්නිවේදන, ලේඛන, අලෙවිකරණ, ගුරු",
+        "කටක": "සත්කාරක, ඉගැන්වීම, බැංකු, දේපළ වෙළඳාම",
+        "සිංහ": "දේශපාලනය, කළමනාකරණ, රංගනය, ව්‍යාපාර",
+        "කන්‍යා": "ගණකාධිකරණ, වෛද්‍ය, පර්යේෂණ, ලේඛන",
+        "තුලා": "නීතිය, රාජ්‍යතාන්ත්‍රික, විනිශ්චය, කලාව",
+        "වෘශ්චික": "පර්යේෂණ, රහස් පරීක්ෂණ, මනෝවිද්‍යාව",
+        "ධනු": "නීතිය, ඉගැන්වීම, ප්‍රකාශන, සංචාරක",
+        "මකර": "ඉංජිනේරු, කළමනාකරණ, දේපළ වෙළඳාම",
+        "කුම්භ": "තාක්ෂණය, පර්යේෂණ, ජ්‍යොතිෂය",
+        "මීන": "කලාව, සංගීතය, නැටුම්, අධ්‍යාත්මික"
     }
     professions = profession_suggestions.get(calc_data.get('lagna', ''), "විවිධ ක්ෂේත්‍ර")
     
     report = f"""<div class="result-card">
-<h2>🌟 {calc_data.get('name')} {salutation} ගේ සම්පූර්ණ පලාපල වාර්තාව</h2>
-<p><small>✨ වෛදික ජ්‍යොතිෂය මත පදනම් වූ ගණනය කිරීම් (Lahiri Ayanamsa)<br>
-📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
+<h2>🌟 {calc_data.get('name')} {salutation} ගේ පලාපල වාර්තාව</h2>
+<p><small>✨ Lahiri Ayanamsa - ශ්‍රී ලාංකීය ජ්‍යොතිෂ ක්‍රමය<br>📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
 <hr>
 
-<h3>📋 1. ගණනය කරන ලද ජ්‍යොතිෂ දත්ත</h3>
+<h3>📋 1. ජ්‍යොතිෂ දත්ත</h3>
 <table style="width:100%; border-collapse:collapse;">
     <tr><th style="background:#e94560; padding:10px; text-align:left;">ගුණාංගය</th><th style="background:#e94560; padding:10px; text-align:left;">විස්තරය</th></tr>
-    <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>⭐ ලග්නය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('lagna')} (අධිපති: {calc_data.get('lagna_lord')})</td></tr>
-    <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🌙 උපන් නැකත</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('nakshathra')} (පාදය {calc_data.get('nak_pada')})<br>අධිපති: {calc_data.get('nak_lord')}</td></tr>
-    <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🕉️ ගණය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('nak_gana')}</td></tr>
-    <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>🦁 යෝනිය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('nak_yoni')}</td></tr>
-    <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>⚥ ජන්ම ලිංගය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">{calc_data.get('nak_linga')}</td></tr>
-    <tr><td style="padding:8px; border-bottom:1px solid #333;"><strong>📐 අයනාංශය</strong></td><td style="padding:8px; border-bottom:1px solid #333;">Lahiri (Chitrapaksha) - ශ්‍රී ලාංකීය ක්‍රමය</td></tr>
+    <tr><td style="padding:8px;"><strong>⭐ ලග්නය</strong></td><td>{calc_data.get('lagna')} (අධිපති: {calc_data.get('lagna_lord')})</td></tr>
+    <tr><td style="padding:8px;"><strong>🌙 නැකත</strong></td><td>{calc_data.get('nakshathra')} (පාදය {calc_data.get('nak_pada')})<br>අධිපති: {calc_data.get('nak_lord')}</td></tr>
+    <tr><td style="padding:8px;"><strong>🕉️ ගණය</strong></td><td>{calc_data.get('nak_gana')}</td></tr>
+    <tr><td style="padding:8px;"><strong>🦁 යෝනිය</strong></td><td>{calc_data.get('nak_yoni')}</td></tr>
+    <tr><td style="padding:8px;"><strong>⚥ ලිංගය</strong></td><td>{calc_data.get('nak_linga')}</td></tr>
 </table>
 
-<h3>🪐 2. ග්‍රහ පිහිටීම් සාරාංශය</h3>
+<h3>🪐 2. ග්‍රහ පිහිටීම්</h3>
 <ul>
 """
     for planet, bhava in calc_data.get('planet_bhava_details', {}).items():
@@ -550,41 +518,18 @@ def generate_detailed_report_without_ai(calc_data):
     report += f"""
 </ul>
 
-<h3>🏠 3. භාව වල ග්‍රහ පිහිටීම්</h3>
-<ul>
-"""
-    for bhava, planets in calc_data.get('bhava_map', {}).items():
-        if planets:
-            report += f"<li><strong>{bhava} වන භාවය:</strong> {', '.join(planets)}</li>"
-        else:
-            report += f"<li><strong>{bhava} වන භාවය:</strong> කිසිදු ග්‍රහයෙක් නැත</li>"
-    
-    report += f"""
-</ul>
-
-<h3>📖 4. නැකතේ ස්වභාවය</h3>
-<p><strong>{calc_data.get('nakshathra')} නැකත</strong> - {calc_data.get('nak_gana')} ගණය, {calc_data.get('nak_yoni')} යෝනිය</p>
-<p>{calc_data.get('nakshathra')} නැකතේ උපත ලබන අය ඉතා බුද්ධිමත්, කාරුණික, අවංක සහ ප්‍රතිපත්තිගරුක පුද්ගලයන් වේ. මෙම නැකතේ අධිපතිත්වය දරන්නේ <strong>{calc_data.get('nak_lord')}</strong> ග්‍රහයා වන අතර, {calc_data.get('nak_gana')} ගණය සහ {calc_data.get('nak_yoni')} යෝනිය නිසා සමාජයේ ගෞරවයට පාත්‍ර වේ.</p>
-
-<h3>💫 5. ලග්නයේ බලපෑම</h3>
-<p><strong>{calc_data.get('lagna')} ලග්නය</strong> සහ <strong>{calc_data.get('lagna_lord')}</strong> ලග්නාධිපතිත්වය යටතේ උපත ලැබීම නිසා, ඔබ සතුව අතිවිශිෂ්ට නායකත්ව ගුණාංග, ධෛර්යය, ස්ථිරභාවය සහ අධිෂ්ඨාන ශක්තියක් පවතී.</p>
-
-<h3>💼 6. සුදුසු වෘත්තීන්</h3>
-<p>ඔබගේ ලග්නය {calc_data.get('lagna')} සහ නැකත {calc_data.get('nakshathra')} මත පදනම්ව පහත ක්ෂේත්‍ර සුදුසු වේ:</p>
+<h3>💼 3. සුදුසු වෘත්තීන්</h3>
 <p><strong>{professions}</strong></p>
 
-<h3>🙏 7. පිළියම් සහ උපදෙස්</h3>
+<h3>🙏 4. පිළියම් සහ උපදෙස්</h3>
 <ul>
-<li>සෑම <strong>බ්‍රහස්පතින්දා</strong> දිනකම පන්සල් ගොස් බුද්ධ පූජා පැවැත්වීම</li>
 <li><strong>"ඕම් {calc_data.get('nak_lord')}වේ නමඃ"</strong> මන්ත්‍රය දිනපතා ජප කිරීම</li>
+<li>සෑම බ්‍රහස්පතින්දා පන්සල් ගොස් බුද්ධ පූජා පැවැත්වීම</li>
 <li>කහ පැහැති මල් පූජා කිරීම සුබයි</li>
-<li>දරුවන්ට සහ අවශ්‍යතා ඇති අයට උදව් කිරීමෙන් පින් සිද්ධ වේ</li>
 </ul>
 
 <hr>
-<p style="text-align: center"><em>© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය (Lahiri Ayanamsa)<br>
-🔮 සත්‍යය සහ ධර්මය ජය වේවා!<br>
-🌺 ආයුබෝවන්! සැම දෙයක්ම සුභ සිද්ධ වේවා!</em></p>
+<p style="text-align: center"><em>© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය<br>🌺 ආයුබෝවන්!</em></p>
 </div>"""
     
     return report
@@ -592,47 +537,34 @@ def generate_detailed_report_without_ai(calc_data):
 # ==================== Display Rashi Chart ====================
 
 def display_rashi_chart(rashi_chart, lagna_name):
-    """
-    රාශි චක්‍රය ග්‍රිඩ් එකක් ලෙස ප්‍රදර්ශනය කරයි
-    """
+    """රාශි චක්‍රය ප්‍රදර්ශනය කරයි"""
     st.subheader(f"🕉️ රාශි චක්‍රය (ලග්නය: {lagna_name})")
     
-    # රාශි චක්‍රය පෙළගැස්ම (North Indian style grid)
-    # 4x3 grid එකක්
     rashi_order = ["මේෂ", "වෘෂභ", "මිථුන", "කටක", "සිංහ", "කන්‍යා",
                    "තුලා", "වෘශ්චික", "ධනු", "මකර", "කුම්භ", "මීන"]
     
-    # ලග්නය 1 වන ස්ථානයේ තැබීමට භ්‍රමණය කරන්න
     lagna_index = rashi_order.index(lagna_name)
     rotated_rashi = rashi_order[lagna_index:] + rashi_order[:lagna_index]
     
-    # Grid එක display කිරීම
+    planet_symbols = {
+        "රවි": "☀️", "සඳු": "🌙", "කුජ": "♂️", "බුධ": "☿",
+        "ගුරු": "♃", "සිකුරු": "♀️", "ශනි": "♄", "රාහු": "☊", "කේතු": "☋"
+    }
+    
     cols = st.columns(4)
     for i, rashi in enumerate(rotated_rashi):
         col_idx = i % 4
-        row_idx = i // 4
-        
         if col_idx == 0 and i > 0:
             cols = st.columns(4)
         
         planets_in_rashi = []
-        for planet, rashi_data in rashi_chart.items():
+        for rashi_data in rashi_chart.values():
             if rashi_data["sign"] == rashi and rashi_data["planets"]:
-                planets_in_rashi.extend(rashi_data["planets"])
+                for p in rashi_data["planets"]:
+                    short_name = p.split(' (')[0]
+                    planets_in_rashi.append(planet_symbols.get(short_name, "●"))
         
-        planet_symbols = {
-            "රවි (සූර්ය)": "☀️",
-            "සඳු (චන්ද්‍ර)": "🌙",
-            "කුජ (අඟහරු)": "♂️",
-            "බුධ (බුද්ධ)": "☿",
-            "ගුරු (බ්‍රහස්පති)": "♃",
-            "සිකුරු (ශුක්‍ර)": "♀️",
-            "ශනි (සෙනසුරු)": "♄",
-            "රාහු": "☊",
-            "කේතු": "☋"
-        }
-        
-        planet_display = " ".join([planet_symbols.get(p.split(' (')[0], "●") for p in planets_in_rashi[:3]])
+        planet_display = " ".join(planets_in_rashi[:3])
         
         with cols[col_idx]:
             st.markdown(f"""
@@ -642,62 +574,12 @@ def display_rashi_chart(rashi_chart, lagna_name):
             </div>
             """, unsafe_allow_html=True)
 
-def display_nakshatra_details(calc_data):
-    """
-    නැකතේ සම්පූර්ණ විස්තර ප්‍රදර්ශනය කරයි
-    """
-    st.subheader("🌙 නැකත් විස්තර")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="detail-card">
-            <small>🌟 නැකත</small>
-            <div class="value">{calc_data.get('nakshathra')}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="detail-card">
-            <small>🕉️ ගණය</small>
-            <div class="value">{calc_data.get('nak_gana')}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div class="detail-card">
-            <small>👑 නැකත් අධිපති</small>
-            <div class="value">{calc_data.get('nak_lord')}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="detail-card">
-            <small>🦁 යෝනිය</small>
-            <div class="value">{calc_data.get('nak_yoni')}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class="detail-card">
-            <small>🔢 පාදය</small>
-            <div class="value">{calc_data.get('nak_pada')}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="detail-card">
-            <small>⚥ ජන්ම ලිංගය</small>
-            <div class="value">{calc_data.get('nak_linga')}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
 # ==================== Admin Panel ====================
 
 def admin_panel():
     st.markdown('<div class="main-header"><h1>👑 පරිපාලක පුවරුව</h1><p>Admin Dashboard</p></div>', unsafe_allow_html=True)
     
-    admin_email = st.text_input("පරිපාලක විද්‍යුත් තැපෑල ඇතුළත් කරන්න", type="password")
+    admin_email = st.text_input("පරිපාලක විද්‍යුත් තැපෑල", type="password")
     
     if admin_email == "sampathub89@gmail.com":
         st.success("✅ සත්‍යාපනය සාර්ථකයි!")
@@ -708,48 +590,24 @@ def admin_panel():
             st.success(f"✅ Gemini API යතුරු {len(api_keys)}ක් හමු විය")
         else:
             st.warning("⚠️ Gemini API යතුරක් හමු නොවීය")
-            st.info("API Key එකක් සැකසීමට: https://aistudio.google.com/app/apikey වෙත ගොස් API key එකක් ලබා ගන්න")
         
         calculations = get_admin_calculations()
-        
         if calculations:
-            st.subheader(f"📊 සියලු ගණනය කිරීම් ({len(calculations)})")
-            
-            calc_list = []
-            for calc_id, calc in calculations.items():
-                calc_list.append({"id": calc_id, "data": calc})
-            calc_list.reverse()
-            
-            for item in calc_list[:50]:
-                calc = item["data"]
-                with st.expander(f"📅 {calc.get('timestamp', '')[:10]} - {calc.get('name', '')} ({calc.get('lagna', '')})"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**නම:** {calc.get('name', '')}")
-                        st.write(f"**ලිංගය:** {calc.get('gender', '')}")
-                        st.write(f"**උපන් දිනය:** {calc.get('dob', '')}")
-                    with col2:
-                        st.write(f"**ලග්නය:** {calc.get('lagna', '')}")
-                        st.write(f"**නැකත:** {calc.get('nakshathra', '')}")
-                        st.write(f"**යෝනිය:** {calc.get('nak_yoni', '')}")
-        else:
-            st.info("තවමත් ගණනය කිරීම් නොමැත")
+            st.subheader(f"📊 ගණනය කිරීම් ({len(calculations)})")
+            for calc_id, calc in list(calculations.items())[-10:]:
+                with st.expander(f"📅 {calc.get('timestamp', '')[:10]} - {calc.get('name', '')}"):
+                    st.write(f"ලග්නය: {calc.get('lagna')}, නැකත: {calc.get('nakshathra')}")
     elif admin_email:
-        st.error("වලංගු පරිපාලක විද්‍යුත් තැපෑලක් නොවේ")
+        st.error("වලංගු පරිපාලක ඊමේල් එකක් නොවේ")
 
-# ==================== Main Calculation Form ====================
+# ==================== Main Form ====================
 
 def calculation_form():
-    st.markdown('<div class="main-header"><h1>🔮 AstroPro SL</h1><p>ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය (Lahiri Ayanamsa)</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>🔮 AstroPro SL</h1><p>ශ්‍රී ලාංකීය ජ්‍යොතිෂය (Lahiri Ayanamsa)</p></div>', unsafe_allow_html=True)
     
-    st.info("📌 මෙම පද්ධතිය ශ්‍රී ලංකාවේ භාවිතා වන **Lahiri Ayanamsa** පමණක් භාවිතා කරයි. සියලු ගණනය කිරීම් UTC වලට පරිවර්තනය කර සිදු කෙරේ.")
-    
-    if not get_available_api_keys():
-        st.info("💡 සම්පූර්ණ AI පලාපල වාර්තා සඳහා API key එකක් සැකසීමට පරිපාලක අමතන්න")
+    st.info("📌 **Lahiri Ayanamsa** භාවිතා කරයි - ශ්‍රී ලංකා ජ්‍යොතිෂ ක්‍රමය")
     
     with st.form("calculation_form"):
-        st.markdown("### 📝 ඔබගේ තොරතුරු")
-        
         col1, col2 = st.columns(2)
         with col1:
             name = st.text_input("නම *", placeholder="ඔබගේ සම්පූර්ණ නම")
@@ -758,8 +616,7 @@ def calculation_form():
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            dob = st.date_input("උපන් දිනය *", value=datetime(1995, 5, 20), 
-                               min_value=datetime(1940, 1, 1), max_value=datetime(2050, 12, 31))
+            dob = st.date_input("උපන් දිනය *", value=datetime(1995, 5, 20))
         with col2:
             hour = st.number_input("පැය (0-23)", 0, 23, 10)
         with col3:
@@ -767,28 +624,22 @@ def calculation_form():
         
         city = st.selectbox("දිස්ත්‍රික්කය *", list(DISTRICTS.keys()))
         
-        st.caption(f"⏰ ශ්‍රී ලංකා වේලාව (GMT+5:30) UTC වලට පරිවර්තනය කර ගණනය කෙරේ")
-        
         submitted = st.form_submit_button("🔮 කේන්දරය ගණනය කරන්න", use_container_width=True)
         
         if submitted:
             if not name.strip():
                 st.error("කරුණාකර නම ඇතුළත් කරන්න")
             else:
-                with st.spinner("🔄 ගණනය කරමින්... UTC වලට පරිවර්තනය කරමින්... කරුණාකර මොහොතක් රැඳී සිටින්න"):
+                with st.spinner("ගණනය කරමින්... (UTC පරිවර්තනය + Lahiri Ayanamsa)"):
                     result, error = perform_calculation(name, gender, dob, hour, minute, city)
-                    
                     if result:
                         st.session_state.calculation_result = result
                         st.session_state.show_calculation = True
-                        st.session_state.ai_report = None
-                        
                         save_calculation_to_firebase(result)
                         st.success("✅ ගණනය කිරීම් සාර්ථකයි!")
-                        
                         st.rerun()
                     else:
-                        st.error(f"දෝෂයක්: {error}")
+                        st.error(f"දෝෂය: {error}")
 
 # ==================== Display Results ====================
 
@@ -799,154 +650,48 @@ def display_results():
         st.markdown("---")
         st.markdown("## 📊 ගණනය කිරීමේ ප්‍රතිඵල")
         
-        # Basic details in cards
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.markdown(f"""
-            <div class="detail-card">
-                <small>⭐ ලග්නය</small>
-                <div class="value">{result['lagna']}</div>
-                <small>{result['lagna_lord']} අධිපති</small>
-            </div>
-            """, unsafe_allow_html=True)
-        
+            st.markdown(f'<div class="detail-card"><small>⭐ ලග්නය</small><div class="value">{result["lagna"]}</div></div>', unsafe_allow_html=True)
         with col2:
-            st.markdown(f"""
-            <div class="detail-card">
-                <small>🌙 නැකත</small>
-                <div class="value">{result['nakshathra']}</div>
-                <small>{result['nak_lord']} අධිපති</small>
-            </div>
-            """, unsafe_allow_html=True)
-        
+            st.markdown(f'<div class="detail-card"><small>🌙 නැකත</small><div class="value">{result["nakshathra"]}</div></div>', unsafe_allow_html=True)
         with col3:
-            st.markdown(f"""
-            <div class="detail-card">
-                <small>🕉️ ගණය</small>
-                <div class="value">{result['nak_gana']}</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
+            st.markdown(f'<div class="detail-card"><small>🕉️ ගණය</small><div class="value">{result["nak_gana"]}</div></div>', unsafe_allow_html=True)
         with col4:
-            st.markdown(f"""
-            <div class="detail-card">
-                <small>🦁 යෝනිය</small>
-                <div class="value">{result['nak_yoni']}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f'<div class="detail-card"><small>🦁 යෝනිය</small><div class="value">{result["nak_yoni"]}</div></div>', unsafe_allow_html=True)
         
-        # Display Rashi Chart
         display_rashi_chart(result.get('rashi_chart', {}), result.get('lagna', ''))
         
-        # Display Nakshatra Details
-        display_nakshatra_details(result)
-        
-        # Planet positions by Bhava
         st.subheader("🏠 ග්‍රහ පිහිටීම් (භාව අනුව)")
-        
         bhava_items = list(result['bhava_map'].items())
-        mid = len(bhava_items) // 2
-        
         col1, col2 = st.columns(2)
-        with col1:
-            for bhava, planets in bhava_items[:mid]:
+        for i, (bhava, planets) in enumerate(bhava_items):
+            with col1 if i < 6 else col2:
                 if planets:
                     st.markdown(f"**{bhava} වන භාවය:** {', '.join(planets)}")
                 else:
                     st.markdown(f"**{bhava} වන භාවය:** -")
         
-        with col2:
-            for bhava, planets in bhava_items[mid:]:
-                if planets:
-                    st.markdown(f"**{bhava} වන භාවය:** {', '.join(planets)}")
-                else:
-                    st.markdown(f"**{bhava} වන භාවය:** -")
-        
-        # Planet longitudes table
-        with st.expander("🔭 ග්‍රහයින්ගේ සම්පූර්ණ දේශාංශ"):
-            for planet, lon in result.get('planet_longitudes', {}).items():
-                rashi = RA_NAMES[int(lon / 30) % 12]
-                degree = lon % 30
-                st.write(f"**{planet}:** {rashi} රාශියේ {degree:.2f}°")
-        
-        # AI Report Button
-        st.markdown("---")
-        if st.button("🤖 AI පලාපල විස්තරය ලබාගන්න", use_container_width=True):
-            with st.spinner("🤖 AI විශ්ලේෂණය කරමින්... කරුණාකර මොහොතක් රැඳී සිටින්න (තත්පර 15-20)"):
+        if st.button("🤖 AI පලාපල විස්තරය", use_container_width=True):
+            with st.spinner("AI විශ්ලේෂණය කරමින්..."):
                 ai_report = get_ai_astrology_report(result)
                 st.session_state.ai_report = ai_report
                 st.rerun()
         
-        # Display AI Report if available
         if st.session_state.ai_report:
             st.markdown(st.session_state.ai_report, unsafe_allow_html=True)
-            
-            # Share buttons
-            st.markdown("---")
-            st.markdown("#### 📤 බෙදාගන්න")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                html_content = f"""
-                <!DOCTYPE html>
-                <html>
-                <head><meta charset="UTF-8"><title>AstroPro SL - {result['name']} ගේ වාර්තාව</title>
-                <style>body{{font-family:Arial;padding:20px;}} h1{{color:#e94560;}} .report{{background:#1a1a2e;color:white;padding:20px;border-radius:15px;}}</style>
-                </head>
-                <body>
-                <h1>AstroPro SL - {result['name']} ගේ ජන්ම පත්‍රය</h1>
-                <div class="report">
-                <h2>පුද්ගලික තොරතුරු</h2>
-                <p>නම: {result['name']}<br>ලිංගය: {result['gender']}<br>උපන් දිනය: {result['dob']}<br>උපන් වේලාව: {result['time']}<br>දිස්ත්‍රික්කය: {result['city']}</p>
-                <h2>ජ්‍යොතිෂ ගණනය කිරීම්</h2>
-                <p>ලග්නය: {result['lagna']}<br>නැකත: {result['nakshathra']}<br>ගණය: {result['nak_gana']}<br>යෝනිය: {result['nak_yoni']}</p>
-                <h2>පලාපල විස්තරය</h2>
-                {st.session_state.ai_report}
-                </div>
-                <hr><p>© AstroPro SL - {datetime.now().strftime('%Y-%m-%d')}<br>Lahiri Ayanamsa - ශ්‍රී ලාංකීය ජ්‍යොතිෂ ක්‍රමය</p>
-                </body>
-                </html>
-                """
-                b64 = base64.b64encode(html_content.encode()).decode()
-                href = f'<a href="data:text/html;base64,{b64}" download="astro_report_{result["name"]}_{datetime.now().strftime("%Y%m%d")}.html"><button style="background-color:#4CAF50;color:white;padding:10px;border:none;border-radius:5px;cursor:pointer;width:100%;">📥 Report බාගන්න</button></a>'
-                st.markdown(href, unsafe_allow_html=True)
-            
-            with col2:
-                whatsapp_msg = f"""*AstroPro SL - {result['name']} ගේ ජන්ම පත්‍රය*
-
-📅 උපන් දිනය: {result['dob']}
-⏰ උපන් වේලාව: {result['time']}
-📍 දිස්ත්‍රික්කය: {result['city']}
-
-*ජ්‍යොතිෂ ගණනය කිරීම්:*
-⭐ ලග්නය: {result['lagna']}
-🌙 නැකත: {result['nakshathra']}
-🕉️ ගණය: {result['nak_gana']}
-🦁 යෝනිය: {result['nak_yoni']}
-
----
-*AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය (Lahiri Ayanamsa)*"""
-                whatsapp_url = f"https://wa.me/?text={requests.utils.quote(whatsapp_msg)}"
-                st.markdown(f'<a href="{whatsapp_url}" target="_blank"><button style="background-color:#25D366;color:white;padding:10px;border:none;border-radius:5px;cursor:pointer;width:100%;">📱 WhatsApp</button></a>', unsafe_allow_html=True)
-            
-            with col3:
-                email_body = f"{whatsapp_msg}\n\n{st.session_state.ai_report[:2000]}"
-                email_url = f"mailto:?subject=AstroPro SL - {result['name']} ගේ වාර්තාව&body={requests.utils.quote(email_body)}"
-                st.markdown(f'<a href="{email_url}" target="_blank"><button style="background-color:#EA4335;color:white;padding:10px;border:none;border-radius:5px;cursor:pointer;width:100%;">📧 Email</button></a>', unsafe_allow_html=True)
         
-        if st.button("🔄 නව ගණනය කිරීමක් සඳහා", use_container_width=True):
+        if st.button("🔄 නව ගණනය කිරීමක්", use_container_width=True):
             st.session_state.show_calculation = False
             st.session_state.calculation_result = None
             st.session_state.ai_report = None
             st.rerun()
 
-# ==================== Main App ====================
+# ==================== Main ====================
 
 def main():
     with st.sidebar:
-        st.markdown("---")
-        if st.button("👑 පරිපාලක පුවරුව", use_container_width=True):
+        if st.button("👑 පරිපාලක", use_container_width=True):
             st.session_state.show_admin = not st.session_state.get('show_admin', False)
         if st.button("🏠 මුල් පිටුව", use_container_width=True):
             st.session_state.show_admin = False
@@ -965,10 +710,8 @@ def main():
     
     st.markdown("""
     <div class="footer">
-        © 2026 AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂ පද්ධතිය<br>
-        <small>📐 Lahiri Ayanamsa (Chitrapaksha) - ශ්‍රී ලංකාවේ භාවිතා වන ක්‍රමය<br>
-        ⏰ සියලු ගණනය කිරීම් UTC වලට පරිවර්තනය කර සිදු කෙරේ<br>
-        📧 වැඩිදුර තොරතුරු සඳහා: sampathub89@gmail.com</small>
+        © 2026 AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය<br>
+        <small>📐 Lahiri Ayanamsa | ⏰ UTC පරිවර්තනය<br>📧 sampathub89@gmail.com</small>
     </div>
     """, unsafe_allow_html=True)
 
