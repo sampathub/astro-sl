@@ -137,9 +137,6 @@ def get_admin_calculations():
 RA_NAMES = ["මේෂ", "වෘෂභ", "මිථුන", "කටක", "සිංහ", "කන්‍යා", 
             "තුලා", "වෘශ්චික", "ධනු", "මකර", "කුම්භ", "මීන"]
 
-# රාශි අංග (Degrees per sign)
-RA_DEGREES = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]
-
 # රාශි අධිපති ග්‍රහයින්
 RA_LORDS = ["අඟහරු", "සිකුරු", "බුධ", "සඳු", "රවි", "බුධ",
             "සිකුරු", "අඟහරු", "ගුරු", "සෙනසුරු", "සෙනසුරු", "ගුරු"]
@@ -216,6 +213,7 @@ PLANETS = [
 def convert_sri_lanka_to_utc(year, month, day, hour, minute):
     """
     ශ්‍රී ලංකා වේලාව (GMT+5:30) UTC බවට පරිවර්තනය කරයි
+    1950-2040 අතර ඕනෑම දිනයක් සඳහා වැඩ කරයි
     """
     # ශ්‍රී ලංකාව GMT+5:30 වේ
     # UTC = Local - 5:30
@@ -242,6 +240,7 @@ def convert_sri_lanka_to_utc(year, month, day, hour, minute):
                 utc_day = 31
             elif month == 3:
                 utc_month = 2
+                # Leap year check
                 if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0):
                     utc_day = 29
                 else:
@@ -253,7 +252,7 @@ def convert_sri_lanka_to_utc(year, month, day, hour, minute):
                 utc_month = month - 1
                 utc_day = 31
     
-    # Julian Day ගණනය කිරීම
+    # Julian Day ගණනය කිරීම (1950-2040 සඳහා නිවැරදිව)
     jd = swe.julday(utc_year, utc_month, utc_day, utc_hour + utc_minute/60.0)
     
     return jd, (utc_year, utc_month, utc_day, utc_hour, utc_minute)
@@ -264,7 +263,7 @@ def calculate_lagna_accurately(jd, lat, lon):
     """
     නිවැරදි ලග්නය ගණනය කිරීම
     """
-    # Lahiri Ayanamsa පමණක් භාවිතා කරන්න
+    # Lahiri Ayanamsa පමණක් භාවිතා කරන්න (Sri Lankan system)
     swe.set_sid_mode(swe.SIDM_LAHIRI)
     
     # භාව සහ ලග්නය ගණනය කිරීම
@@ -418,19 +417,43 @@ def create_rashi_chart(planet_positions, lagna_rashi_index):
         }
     
     for planet_name, planet_data in planet_positions.items():
-        rashi_name = planet_data["rashi_name"]
-        if rashi_name in rashi_chart:
-            rashi_chart[rashi_name]["planets"].append(planet_name)
+        if "error" not in planet_data:
+            rashi_name = planet_data["rashi_name"]
+            if rashi_name in rashi_chart:
+                rashi_chart[rashi_name]["planets"].append(planet_name)
     
     return rashi_chart
+
+# ==================== Year Range Validation ====================
+
+def is_valid_year_range(year):
+    """
+    වසර 1950-2040 අතර දැයි පරීක්ෂා කරයි
+    """
+    return 1950 <= year <= 2040
+
+def get_year_warning(year):
+    """
+    වසර පරාසය පිළිබඳ අනතුරු ඇඟවීම
+    """
+    if year < 1950:
+        return f"⚠️ {year} වසර 1950 ට පෙර වේ. ගණනය කිරීම් අඩු නිරවද්‍ය විය හැක."
+    elif year > 2040:
+        return f"⚠️ {year} වසර 2040 ට පසු වේ. ගණනය කිරීම් අඩු නිරවද්‍ය විය හැක."
+    return None
 
 # ==================== Main Calculation Function ====================
 
 def perform_calculation(name, gender, dob, hour, minute, city):
     """
     සම්පූර්ණ ජ්‍යොතිෂ ගණනය කිරීම් සිදු කරයි
+    1950-2040 අතර ඕනෑම වසරක් සඳහා වැඩ කරයි
     """
     try:
+        # වසර පරාසය පරීක්ෂා කිරීම
+        year = dob.year
+        year_warning = get_year_warning(year)
+        
         # 1. UTC පරිවර්තනය
         jd, utc_info = convert_sri_lanka_to_utc(dob.year, dob.month, dob.day, hour, minute)
         
@@ -472,6 +495,7 @@ def perform_calculation(name, gender, dob, hour, minute, city):
             "longitude": lon,
             "julian_day": jd,
             "utc_time": f"{utc_info[3]:02d}:{utc_info[4]:02d} UTC",
+            "year_warning": year_warning,
             
             # ලග්න තොරතුරු
             "lagna": lagna_data["rashi_name"],
@@ -507,27 +531,6 @@ def perform_calculation(name, gender, dob, hour, minute, city):
         import traceback
         error_details = traceback.format_exc()
         return None, f"දෝෂය: {str(e)}\n\n{error_details}"
-
-# ==================== Debug Display Function ====================
-
-def display_debug_info(result):
-    """
-    දෝෂ පරීක්ෂාව සඳහා සවිස්තරාත්මක තොරතුරු ප්‍රදර්ශනය කරයි
-    """
-    with st.expander("🔧 තාක්ෂණික තොරතුරු (Debug Info)"):
-        st.write("### ලග්න ගණනය කිරීම්")
-        st.write(f"- ලග්න දේශාංශය: {result.get('lagna_longitude', 0)}°")
-        st.write(f"- ලග්න අංශක: {result.get('lagna_degree', 0)}° {result.get('lagna_minute', 0)}′ {result.get('lagna_second', 0)}″")
-        st.write(f"- ලග්න රාශිය: {result.get('lagna', '')} (අධිපති: {result.get('lagna_lord', '')})")
-        
-        st.write("### UTC පරිවර්තනය")
-        st.write(f"- UTC වේලාව: {result.get('utc_time', '')}")
-        st.write(f"- ජූලියන් දිනය: {result.get('julian_day', 0)}")
-        
-        st.write("### ග්‍රහ දේශාංශ")
-        for planet, data in result.get('planet_positions', {}).items():
-            if 'error' not in data:
-                st.write(f"- {planet}: {data['longitude']:.4f}° ({data['rashi_name']} රාශියේ {data['degree']:.2f}°)")
 
 # ==================== AI Prediction Functions ====================
 
@@ -642,7 +645,7 @@ def generate_detailed_report_without_ai(calc_data):
     
     report = f"""<div class="result-card">
 <h2>🌟 {calc_data.get('name')} {salutation} ගේ සම්පූර්ණ පලාපල වාර්තාව</h2>
-<p><small>✨ Lahiri Ayanamsa - ශ්‍රී �ලාංකීය ජ්‍යොතිෂ ක්‍රමය<br>
+<p><small>✨ Lahiri Ayanamsa - ශ්‍රී ලාංකීය ජ්‍යොතිෂ ක්‍රමය<br>
 📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
 <hr>
 
@@ -780,6 +783,27 @@ def display_nakshatra_details(calc_data):
         </div>
         """, unsafe_allow_html=True)
 
+def display_debug_info(result):
+    """දෝෂ පරීක්ෂාව සඳහා සවිස්තරාත්මක තොරතුරු ප්‍රදර්ශනය කරයි"""
+    with st.expander("🔧 තාක්ෂණික තොරතුරු (Debug Info)"):
+        if result.get('year_warning'):
+            st.warning(result['year_warning'])
+        
+        st.write("### 📅 දිනය සහ වේලාව")
+        st.write(f"- ශ්‍රී ලංකා වේලාව: {result.get('time', '')}")
+        st.write(f"- UTC වේලාව: {result.get('utc_time', '')}")
+        st.write(f"- ජූලියන් දිනය: {result.get('julian_day', 0):.6f}")
+        
+        st.write("### ⭐ ලග්න ගණනය කිරීම්")
+        st.write(f"- ලග්න දේශාංශය: {result.get('lagna_longitude', 0)}°")
+        st.write(f"- ලග්න අංශක: {result.get('lagna_degree', 0)}° {result.get('lagna_minute', 0)}′ {result.get('lagna_second', 0)}″")
+        st.write(f"- ලග්න රාශිය: {result.get('lagna', '')} (අධිපති: {result.get('lagna_lord', '')})")
+        
+        st.write("### 🪐 ග්‍රහ දේශාංශ")
+        for planet, data in result.get('planet_positions', {}).items():
+            if 'error' not in data:
+                st.write(f"- {planet}: {data['longitude']:.4f}° ({data['rashi_name']} රාශියේ {data['degree']:.2f}°)")
+
 # ==================== Admin Panel ====================
 
 def admin_panel():
@@ -811,7 +835,9 @@ def admin_panel():
 def calculation_form():
     st.markdown('<div class="main-header"><h1>🔮 AstroPro SL</h1><p>ශ්‍රී ලාංකීය ජ්‍යොතිෂය (Lahiri Ayanamsa)</p></div>', unsafe_allow_html=True)
     
-    st.info("📌 **Lahiri Ayanamsa** භාවිතා කරයි - ශ්‍රී ලංකා ජ්‍යොතිෂ ක්‍රමය\n\n⏰ UTC පරිවර්තනය ස්වයංක්‍රීයව සිදු කෙරේ")
+    st.info("📌 **Lahiri Ayanamsa** භාවිතා කරයි - ශ්‍රී ලංකා ජ්‍යොතිෂ ක්‍රමය\n\n"
+            "⏰ UTC පරිවර්තනය ස්වයංක්‍රීයව සිදු කෙරේ\n\n"
+            "📅 **1950 සිට 2040 දක්වා** වසර සඳහා නිවැරදි ගණනය කිරීම්")
     
     with st.form("calculation_form"):
         col1, col2 = st.columns(2)
@@ -822,13 +848,27 @@ def calculation_form():
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            dob = st.date_input("උපන් දිනය *", value=datetime(1995, 5, 20))
+            dob = st.date_input(
+                "උපන් දිනය *", 
+                value=datetime(1995, 5, 20),
+                min_value=datetime(1950, 1, 1),
+                max_value=datetime(2040, 12, 31)
+            )
         with col2:
             hour = st.number_input("පැය (0-23)", 0, 23, 10)
         with col3:
             minute = st.number_input("මිනිත්තු (0-59)", 0, 59, 30)
         
         city = st.selectbox("දිස්ත්‍රික්කය *", list(DISTRICTS.keys()))
+        
+        # වසර පරාසය පෙන්වීම
+        year = dob.year
+        if year < 1950:
+            st.warning(f"⚠️ {year} වසර 1950 ට පෙර වේ. ගණනය කිරීම් අඩු නිරවද්‍ය විය හැක.")
+        elif year > 2040:
+            st.warning(f"⚠️ {year} වසර 2040 ට පසු වේ. ගණනය කිරීම් අඩු නිරවද්‍ය විය හැක.")
+        else:
+            st.success(f"✅ {year} වසර සඳහා නිවැරදි ගණනය කිරීම් සිදු කෙරේ.")
         
         submitted = st.form_submit_button("🔮 කේන්දරය ගණනය කරන්න", use_container_width=True)
         
@@ -855,6 +895,10 @@ def display_results():
         
         st.markdown("---")
         st.markdown("## 📊 ගණනය කිරීමේ ප්‍රතිඵල")
+        
+        # වසර අනතුරු ඇඟවීම
+        if result.get('year_warning'):
+            st.warning(result['year_warning'])
         
         # ප්‍රධාන ප්‍රතිඵල කාඩ්පත්
         col1, col2, col3, col4 = st.columns(4)
@@ -934,6 +978,10 @@ def display_results():
 
 def main():
     with st.sidebar:
+        st.markdown("### 📅 වසර පරාසය")
+        st.info("1950 - 2040")
+        
+        st.markdown("---")
         if st.button("👑 පරිපාලක", use_container_width=True):
             st.session_state.show_admin = not st.session_state.get('show_admin', False)
         if st.button("🏠 මුල් පිටුව", use_container_width=True):
@@ -955,6 +1003,7 @@ def main():
     <div class="footer">
         © 2026 AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය<br>
         <small>📐 Lahiri Ayanamsa (Chitrapaksha) | ⏰ UTC පරිවර්තනය<br>
+        📅 1950 - 2040 වසර සඳහා නිවැරදි ගණනය කිරීම්<br>
         📧 sampathub89@gmail.com</small>
     </div>
     """, unsafe_allow_html=True)
