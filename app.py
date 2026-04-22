@@ -289,13 +289,15 @@ def calculate_astrology(name, gender, dob, hour, minute, city):
         # නැකත
         nakshatra = get_nakshatra(moon_lon)
         
-        # රාශි චක්‍රය
+        # රාශි චක්‍රය - දත්ත ව්‍යුහය පැහැදිලිව නිර්මාණය කිරීම
         rashi_chart = {}
         for i in range(12):
             rashi_chart[RA_NAMES[i]] = []
         
         for p_name, data in planet_positions.items():
-            rashi_chart[data["rashi"]].append(p_name)
+            rashi_name = data["rashi"]
+            if rashi_name in rashi_chart:
+                rashi_chart[rashi_name].append(p_name)
         
         return {
             "name": name,
@@ -346,11 +348,17 @@ def display_rashi_chart(rashi_chart, lagna_name):
     st.markdown('<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0;">', unsafe_allow_html=True)
     
     for i, rashi in enumerate(rotated):
+        # planets list එක safe ලෙස ලබා ගැනීම
         planets = rashi_chart.get(rashi, [])
+        if planets is None:
+            planets = []
+        
         planet_symbols = []
         for p in planets[:3]:
-            short = p.split(' (')[0]
-            planet_symbols.append(symbols.get(short, "●"))
+            if p and isinstance(p, str):
+                short = p.split(' (')[0]
+                planet_symbols.append(symbols.get(short, "●"))
+        
         display = " ".join(planet_symbols) if planet_symbols else "—"
         
         is_lagna = (i == 0)
@@ -398,7 +406,7 @@ def display_results():
     col1, col2 = st.columns(2)
     for i, (bhava, planets) in enumerate(bhava_items):
         with col1 if i < 6 else col2:
-            if planets:
+            if planets and len(planets) > 0:
                 st.markdown(f"**{bhava} වන භාවය:** {', '.join(planets)}")
             else:
                 st.markdown(f"**{bhava} වන භාවය:** -")
