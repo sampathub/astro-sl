@@ -3,7 +3,6 @@ import swisseph as swe
 from datetime import datetime
 import google.generativeai as genai
 import os
-import requests
 
 # ==================== Page Configuration ====================
 st.set_page_config(
@@ -276,122 +275,61 @@ def calculate_astrology(name, gender, dob, hour, minute, city):
         return None, f"දෝෂය: {str(e)}"
 
 # ==================== API Key Setup ====================
-def get_valid_api_keys():
-    """වලංගු API Keys ලබා ගැනීම (AIzaSy... වලින් පටන් ගන්න)"""
-    api_keys = []
-    
-    # Get from secrets
-    try:
-        for i in range(1, 4):
-            key = st.secrets.get(f"GEMINI_API_KEY_{i}")
-            if key and isinstance(key, str) and key.startswith("AIzaSy") and len(key) > 30:
-                api_keys.append(key)
-        
-        # Single key
-        key = st.secrets.get("GEMINI_API_KEY")
-        if key and isinstance(key, str) and key.startswith("AIzaSy") and len(key) > 30:
-            api_keys.append(key)
-    except Exception as e:
-        pass
-    
-    # Get from environment
-    env_key = os.environ.get("GEMINI_API_KEY")
-    if env_key and isinstance(env_key, str) and env_key.startswith("AIzaSy") and len(env_key) > 30:
-        api_keys.append(env_key)
-    
-    return list(set(api_keys))  # Remove duplicates
-
-# ==================== Alternative: Direct REST API Call ====================
-def get_ai_report_rest_api(api_key, prompt):
-    """REST API එක directly call කිරීම (library issues වලට විසඳුම)"""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }]
-    }
-    
-    try:
-        response = requests.post(url, json=payload, timeout=30)
-        if response.status_code == 200:
-            data = response.json()
-            return data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        else:
-            return None
-    except:
-        return None
+# ඔබගේ API Key එක මෙහි සකසන්න
+GEMINI_API_KEY = "AIzaSyC__ztHvIaym40yXBCAB6Aby_OlNPkclps"
 
 # ==================== AI Report Generation ====================
 def get_ai_report(calc_data):
-    """AI වාර්තාව ලබා ගැනීම - REST API method එක සමඟ"""
+    """AI වාර්තාව ලබා ගැනීම"""
     
-    api_keys = get_valid_api_keys()
-    
-    if not api_keys:
-        return generate_fallback_report(calc_data, "⚠️ වලංගු Gemini API Key එකක් හමු නොවීය\n\n📌 API Key එකක් ලබා ගැනීමට: https://aistudio.google.com/")
-    
-    salutation = "මහතා" if calc_data.get('gender') == "පිරිමි" else "මහත්මිය"
-    
-    # Prepare planet positions
-    planet_list = []
-    for planet, data in calc_data.get('planet_positions', {}).items():
-        bhava = calc_data.get('planet_bhava', {}).get(planet, '?')
-        planet_list.append(f"• {planet}: {data['rashi']} රාශියේ, {bhava} වන භාවයේ")
-    planet_text = "\n".join(planet_list)
-    
-    prompt = f"""ඔබ ශ්‍රී ලංකාවේ ප්‍රසිද්ධ ජ්‍යොතිෂවේදියෙකි.
+    try:
+        # Configure Gemini with your API key
+        genai.configure(api_key=GEMINI_API_KEY)
+        
+        # Use gemini-1.5-flash model
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        salutation = "මහතා" if calc_data.get('gender') == "පිරිමි" else "මහත්මිය"
+        
+        # Prepare planet positions
+        planet_list = []
+        for planet, data in calc_data.get('planet_positions', {}).items():
+            bhava = calc_data.get('planet_bhava', {}).get(planet, '?')
+            planet_list.append(f"• {planet}: {data['rashi']} රාශියේ, {bhava} වන භාවයේ")
+        planet_text = "\n".join(planet_list)
+        
+        prompt = f"""ඔබ ශ්‍රී ලංකාවේ ප්‍රසිද්ධ වෛදික ජ්‍යොතිෂවේදියෙකි. පහත දත්ත මත පදනම්ව සම්පූර්ණ පලාපල වාර්තාවක් සිංහලෙන් ලියන්න.
 
-දත්ත:
+📊 දත්ත:
 නම: {calc_data.get('name')}
 ලිංගය: {calc_data.get('gender')}
 උපන් දිනය: {calc_data.get('dob')}
 උපන් වේලාව: {calc_data.get('time')}
 ස්ථානය: {calc_data.get('city')}
 
-ලග්නය: {calc_data.get('lagna')} (අධිපති: {calc_data.get('lagna_lord')})
-නැකත: {calc_data.get('nakshathra')} (පාදය {calc_data.get('nak_pada')}, අධිපති: {calc_data.get('nak_lord')})
-ගණය: {calc_data.get('nak_gana')}
-යෝනිය: {calc_data.get('nak_yoni')}
+⭐ ලග්නය: {calc_data.get('lagna')} (අධිපති: {calc_data.get('lagna_lord')})
+🌙 නැකත: {calc_data.get('nakshathra')} (පාදය {calc_data.get('nak_pada')}, අධිපති: {calc_data.get('nak_lord')})
+🕉️ ගණය: {calc_data.get('nak_gana')}
+🦁 යෝනිය: {calc_data.get('nak_yoni')}
 
-ග්‍රහ පිහිටීම්:
+🪐 ග්‍රහ පිහිටීම්:
 {planet_text}
 
-පහත කරුණු සිංහලෙන් විස්තරාත්මකව ලියන්න:
-1. උපන් නැකතේ ස්වභාවය සහ ගුණාංග
+පහත කරුණු ඇතුළත් කරන්න:
+1. නැකතේ ස්වභාවය සහ ගුණාංග
 2. ලග්නයේ බලපෑම සහ පෞරුෂත්වය
-3. සුදුසු වෘත්තීන් සහ රැකියා ක්ෂේත්‍ර
+3. සුදුසු වෘත්තීන් සහ රැකියා
 4. විවාහ සහ පවුල් ජීවිතය
 5. සෞඛ්‍ය තත්ත්වය
 6. පිළියම්, මන්ත්‍ර සහ උපදෙස්
 
-කරුණාකර සිංහලෙන් පමණක් ලියන්න."""
+කරුණාකර සිංහලෙන් පමණක් ලියන්න, විස්තරාත්මකව ලියන්න."""
 
-    for i, api_key in enumerate(api_keys, 1):
-        try:
-            # Try REST API method first (more reliable)
-            with st.spinner(f"🤖 AI විශ්ලේෂණය කරමින්... (API Key {i})"):
-                response_text = get_ai_report_rest_api(api_key, prompt)
-                
-            if response_text:
-                return f"""<div class="result-card">
-<h2>🌟 {calc_data.get('name')} {salutation} ගේ සම්පූර්ණ පලාපල වාර්තාව</h2>
-<p><small>✨ වෛදික ජ්‍යොතිෂය (Lahiri Ayanamsa)<br>
-📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br>
-🤖 Gemini 1.5 Flash මගින්</small></p>
-<hr>
-{response_text}
-<hr>
-<p style="text-align:center">© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය</p>
-</div>"""
-            
-            # If REST API fails, try library method
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
+        with st.spinner("🤖 AI විශ්ලේෂණය කරමින්... (තත්පර 10-15)"):
             response = model.generate_content(prompt)
-            
-            if response and response.text:
-                return f"""<div class="result-card">
+        
+        if response and response.text:
+            return f"""<div class="result-card">
 <h2>🌟 {calc_data.get('name')} {salutation} ගේ සම්පූර්ණ පලාපල වාර්තාව</h2>
 <p><small>✨ වෛදික ජ්‍යොතිෂය (Lahiri Ayanamsa)<br>
 📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br>
@@ -399,18 +337,22 @@ def get_ai_report(calc_data):
 <hr>
 {response.text}
 <hr>
-<p style="text-align:center">© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය</p>
+<p style="text-align:center">© AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය<br>
+🌺 සත්‍යය සහ ධර්මය ජය වේවා!</p>
 </div>"""
-                
-        except Exception as e:
-            error_msg = str(e)
-            if "404" in error_msg or "not found" in error_msg:
-                st.warning(f"API Key {i}: Model හමු නොවීය, REST API method උත්සාහ කරමින්...")
-            else:
-                st.warning(f"API Key {i} සමඟ දෝෂය: {error_msg[:100]}")
-            continue
-    
-    return generate_fallback_report(calc_data, "❌ AI වාර්තාව ලබා ගැනීමට නොහැකි විය. කරුණාකර පසුව නැවත උත්සාහ කරන්න.")
+        else:
+            return generate_fallback_report(calc_data, "AI ප්‍රතිචාරයක් ලැබුණේ නැත")
+            
+    except Exception as e:
+        error_msg = str(e)
+        if "API key" in error_msg:
+            return generate_fallback_report(calc_data, "API Key එක වලංගු නැත")
+        elif "quota" in error_msg:
+            return generate_fallback_report(calc_data, "API Quota ඉක්මවා ඇත. පසුව නැවත උත්සාහ කරන්න")
+        elif "model" in error_msg:
+            return generate_fallback_report(calc_data, "Model එකට ප්‍රවේශයක් නැත")
+        else:
+            return generate_fallback_report(calc_data, f"දෝෂය: {error_msg[:100]}")
 
 # ==================== Fallback Report ====================
 def generate_fallback_report(calc_data, warning_msg=""):
@@ -506,13 +448,9 @@ def calculation_form():
     else:
         st.warning("⚠️ Swiss Ephemeris සැකසීමේ ගැටළුවක්")
     
-    # API status
-    valid_keys = get_valid_api_keys()
-    if valid_keys:
-        st.success(f"✅ Gemini API Keys {len(valid_keys)}ක් සකසා ඇත")
-    else:
-        st.warning("⚠️ වලංගු Gemini API Key එකක් හමු නොවීය")
-        st.info("🔑 API Key එකක් ලබා ගැනීමට: https://aistudio.google.com/")
+    st.success("✅ Gemini API Key සකසා ඇත - AI වාර්තාව ලබාගත හැක")
+    
+    st.info("📌 **Lahiri Ayanamsa** - ශ්‍රී ලංකා ජ්‍යොතිෂ ක්‍රමය\n\n⏰ UTC පරිවර්තනය | 📅 1950-2040")
     
     with st.form("astro_form"):
         col1, col2 = st.columns(2)
@@ -556,7 +494,7 @@ def main():
     st.markdown("""
     <div class="footer">
         © 2026 AstroPro SL - ශ්‍රී ලාංකීය ජ්‍යොතිෂය<br>
-        <small>📐 Lahiri Ayanamsa | ⏰ UTC පරිවර්තනය | 📅 1950-2040</small>
+        <small>📐 Lahiri Ayanamsa | ⏰ UTC පරිවර්තනය | 📅 1950-2040 | 🤖 AI බලයෙන්</small>
     </div>
     """, unsafe_allow_html=True)
 
