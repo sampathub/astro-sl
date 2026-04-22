@@ -82,18 +82,14 @@ if 'show_calculation' not in st.session_state:
 
 # ==================== Initialize Swiss Ephemeris ====================
 def init_swisseph():
-    """Swiss Ephemeris ආරම්භ කිරීම"""
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         ephe_path = os.path.join(current_dir, "ephe")
-        
         if os.path.exists(ephe_path):
             swe.set_ephe_path(ephe_path)
-        
-        # Lahiri Ayanamsa පමණක් භාවිතා කරන්න (ශ්‍රී ලංකා ක්‍රමය)
         swe.set_sid_mode(swe.SIDM_LAHIRI)
         return True
-    except Exception as e:
+    except:
         return False
 
 EPHE_READY = init_swisseph()
@@ -107,16 +103,17 @@ RA_NAMES = ["මේෂ", "වෘෂභ", "මිථුන", "කටක", "සි
 RA_LORDS = ["අඟහරු", "සිකුරු", "බුධ", "සඳු", "රවි", "බුධ",
             "සිකුරු", "අඟහරු", "ගුරු", "සෙනසුරු", "සෙනසුරු", "ගුරු"]
 
+# ==================== නැකත් දත්ත (ඔබගේ වගුව අනුව) ====================
 # නැකත් නම් (27)
 NAK_NAMES = [
-    "අශ්විද", "බෙරණ", "කැති", "රෙහෙන", "මුවසිරස", "අද",
-    "පුනාවස", "පුස", "අස්ලිස", "මා", "පුවපල්", "උත්රපල්",
+    "අශ්විනී", "භරණී", "කෘත්තිකා", "රෝහණී", "මුවසිරිස", "අද",
+    "පුනාවස", "පුෂ", "අස්ලිස", "මා", "පුවපල්", "උත්තරපල්",
     "හත", "සිත", "සා", "විසා", "අනුර", "දෙට",
-    "මුල", "පුවසල", "උත්රසල", "සුවණ", "දෙනට", "සියාවස",
-    "පුවපුටුප", "උත්රපුටුප", "රේවතී"
+    "මූල", "පුවසල", "උත්තරසල", "සුවණ", "දෙනට", "සියාවස",
+    "පුවපුටුප", "උත්තරපුටුප", "රේවතී"
 ]
 
-# නැකත් අධිපති
+# නැකත් අධිපති ග්‍රහයින්
 NAK_LORDS = [
     "කේතු", "සිකුරු", "රවි", "සඳු", "අඟහරු", "රාහු",
     "ගුරු", "සෙනසුරු", "බුධ", "කේතු", "සිකුරු", "රවි",
@@ -125,25 +122,69 @@ NAK_LORDS = [
     "ගුරු", "සෙනසුරු", "බුධ"
 ]
 
-# නැකත් ගණ
+# නැකත් ගණය (Gana) - ඔබගේ වගුව අනුව
 NAK_GANA = [
-    "දේව", "මනුෂ්ය", "රාක්ෂස", "මනුෂ්ය", "දේව", "රාක්ෂස",
-    "දේව", "රාක්ෂස", "රාක්ෂස", "මනුෂ්ය", "මනුෂ්ය", "දේව",
-    "රාක්ෂස", "දේව", "රාක්ෂස", "රාක්ෂස", "දේව", "රාක්ෂස",
-    "රාක්ෂස", "මනුෂ්ය", "මනුෂ්ය", "දේව", "රාක්ෂස", "රාක්ෂස",
-    "මනුෂ්ය", "මනුෂ්ය", "දේව"
+    "දේව",      # 1. අශ්විනී
+    "මනුෂ්‍ය",   # 2. භරණී
+    "රාක්ෂස",   # 3. කෘත්තිකා
+    "මනුෂ්‍ය",   # 4. රෝහණී
+    "දේව",      # 5. මුවසිරිස
+    "මනුෂ්‍ය",   # 6. අද
+    "දේව",      # 7. පුනාවස
+    "දේව",      # 8. පුෂ
+    "රාක්ෂස",   # 9. අස්ලිස
+    "රාක්ෂස",   # 10. මා
+    "මනුෂ්‍ය",   # 11. පුවපල්
+    "මනුෂ්‍ය",   # 12. උත්තරපල්
+    "දේව",      # 13. හත
+    "රාක්ෂස",   # 14. සිත
+    "දේව",      # 15. සා
+    "රාක්ෂස",   # 16. විසා
+    "දේව",      # 17. අනුර
+    "රාක්ෂස",   # 18. දෙට
+    "රාක්ෂස",   # 19. මූල
+    "මනුෂ්‍ය",   # 20. පුවසල
+    "මනුෂ්‍ය",   # 21. උත්තරසල
+    "දේව",      # 22. සුවණ
+    "රාක්ෂස",   # 23. දෙනට
+    "රාක්ෂස",   # 24. සියාවස
+    "මනුෂ්‍ය",   # 25. පුවපුටුප
+    "මනුෂ්‍ය",   # 26. උත්තරපුටුප
+    "දේව"       # 27. රේවතී
 ]
 
-# නැකත් යෝනිය
+# නැකත් යෝනිය (Yoni) - ඔබගේ වගුව අනුව
 NAK_YONI = [
-    "අශ්වයා", "මීයා", "ගවයා", "සර්පයා", "සර්පයා", "බල්ලා",
-    "බළලා", "සිංහයා", "මීයා", "ඇතා", "බැටළුවා", "මුවා",
-    "සුනඛයා", "වඳුරා", "සිංහයා", "ව්‍යාඝ්‍රයා", "මුවා", "ගවයා",
-    "ව්‍යාඝ්‍රයා", "මුගටියා", "සුනඛයා", "වඳුරා", "සිංහයා", "මීයා",
-    "අශ්වයා", "ඇතා", "අශ්වයා"
+    "අශ්වයා",      # 1. අශ්විනී - අශ්ව
+    "ඇතා",         # 2. භරණී - ගජ (ඇත්)
+    "බැටළුවා",     # 3. කෘත්තිකා - බැටළු
+    "සර්පයා",       # 4. රෝහණී - සර්ප
+    "සර්පයා",       # 5. මුවසිරිස - සර්ප
+    "බල්ලා",        # 6. අද - සුනඛ (බල්ලා)
+    "මීයා",         # 7. පුනාවස - මූෂික (මීයා)
+    "බැටළුවා",     # 8. පුෂ - බැටළු
+    "මීයා",         # 9. අස්ලිස - මූෂික (මීයා)
+    "මීයා",         # 10. මා - මූෂික (මීයා)
+    "මීයා",         # 11. පුවපල් - මූෂික (මීයා)
+    "ගවයා",         # 12. උත්තරපල් - ගව
+    "මීහරක්",       # 13. හත - මහිෂ (මීහරක්)
+    "ව්‍යාඝ්‍රයා",   # 14. සිත - ව්‍යාඝ්‍ර (වියා)
+    "මීහරක්",       # 15. සා - මහිෂ (මීහරක්)
+    "ව්‍යාඝ්‍රයා",   # 16. විසා - ව්‍යාඝ්‍ර (වියා)
+    "මුවා",         # 17. අනුර - මෘග (මුවා)
+    "මුවා",         # 18. දෙට - මෘග (මුවා)
+    "බල්ලා",        # 19. මූල - සුනඛ (බල්ලා)
+    "වඳුරා",        # 20. පුවසල - වඳුරු
+    "මුගටියා",      # 21. උත්තරසල - නකුල (මුගටියා)
+    "වඳුරා",        # 22. සුවණ - වඳුරු
+    "සිංහයා",       # 23. දෙනට - සිංහ
+    "අශ්වයා",       # 24. සියාවස - අශ්ව
+    "සිංහයා",       # 25. පුවපුටුප - සිංහ
+    "ගවයා",         # 26. උත්තරපුටුප - ගව
+    "ඇතා"           # 27. රේවතී - ගජ (ඇත්)
 ]
 
-# නැකත් ලිංගය
+# නැකත් ජන්ම ලිංගය
 NAK_LINGA = [
     "පුරුෂ", "ස්ත්‍රී", "පුරුෂ", "ස්ත්‍රී", "පුරුෂ", "පුරුෂ",
     "ස්ත්‍රී", "ස්ත්‍රී", "පුරුෂ", "පුරුෂ", "පුරුෂ", "පුරුෂ",
@@ -176,7 +217,6 @@ PLANETS = [
 
 # ==================== UTC Conversion ====================
 def convert_to_utc(year, month, day, hour, minute):
-    """ශ්‍රී ලංකා වේලාව (GMT+5:30) UTC බවට පරිවර්තනය"""
     total_local = hour * 60 + minute
     total_utc = total_local - (5 * 60 + 30)
     
@@ -210,7 +250,6 @@ def convert_to_utc(year, month, day, hour, minute):
 
 # ==================== Planet in Bhava ====================
 def get_bhava(planet_lon, cusps):
-    """ග්‍රහයා පිහිටි භාවය සොයා ගැනීම"""
     for i in range(12):
         start = cusps[i]
         end = cusps[(i + 1) % 12]
@@ -224,7 +263,6 @@ def get_bhava(planet_lon, cusps):
 
 # ==================== Nakshatra Calculation ====================
 def get_nakshatra(moon_lon):
-    """චන්ද්‍ර දේශාංශය අනුව නැකත සොයා ගැනීම"""
     nak_angle = 360.0 / 27.0
     nak_idx = int(moon_lon / nak_angle) % 27
     nak_start = nak_idx * nak_angle
@@ -242,27 +280,18 @@ def get_nakshatra(moon_lon):
 
 # ==================== Main Calculation ====================
 def calculate_astrology(name, gender, dob, hour, minute, city):
-    """සම්පූර්ණ ජ්‍යොතිෂ ගණනය කිරීම"""
     try:
-        # UTC පරිවර්තනය
         jd = convert_to_utc(dob.year, dob.month, dob.day, hour, minute)
-        
-        # Lahiri Ayanamsa (ශ්‍රී ලංකා ක්‍රමය)
         swe.set_sid_mode(swe.SIDM_LAHIRI)
-        
-        # ස්ථානය
         lat, lon = DISTRICTS[city]
         
-        # ලග්නය සහ භාව
         houses, ascmc = swe.houses_ex(jd, lat, lon, b'P', swe.FLG_SIDEREAL)
         
-        # ලග්නය
         lagna_lon = ascmc[0]
         lagna_rashi = int(lagna_lon / 30) % 12
         lagna_name = RA_NAMES[lagna_rashi]
         lagna_lord = RA_LORDS[lagna_rashi]
         
-        # ග්‍රහ පිහිටීම්
         planet_positions = {}
         planet_bhava = {}
         bhava_map = {i+1: [] for i in range(12)}
@@ -286,14 +315,10 @@ def calculate_astrology(name, gender, dob, hour, minute, city):
             planet_bhava[p_name] = bhava
             bhava_map[bhava].append(p_name)
         
-        # නැකත
         nakshatra = get_nakshatra(moon_lon)
         
-        # රාශි චක්‍රය - දත්ත ව්‍යුහය පැහැදිලිව නිර්මාණය කිරීම
-        rashi_chart = {}
-        for i in range(12):
-            rashi_chart[RA_NAMES[i]] = []
-        
+        # Rashi chart
+        rashi_chart = {rashi: [] for rashi in RA_NAMES}
         for p_name, data in planet_positions.items():
             rashi_name = data["rashi"]
             if rashi_name in rashi_chart:
@@ -321,34 +346,27 @@ def calculate_astrology(name, gender, dob, hour, minute, city):
         }, None
         
     except Exception as e:
-        import traceback
         return None, f"දෝෂය: {str(e)}"
 
 # ==================== Display Rashi Chart ====================
 def display_rashi_chart(rashi_chart, lagna_name):
-    """රාශි චක්‍රය ප්‍රදර්ශනය - ලග්නය 1 වන ස්ථානයේ"""
     st.subheader(f"🕉️ රාශි චක්‍රය (ලග්නය: {lagna_name})")
     
-    # රාශි අනුපිළිවෙල
     rashi_order = ["මේෂ", "වෘෂභ", "මිථුන", "කටක", "සිංහ", "කන්‍යා",
                    "තුලා", "වෘශ්චික", "ධනු", "මකර", "කුම්භ", "මීන"]
     
-    # ලග්නය 1 වන ස්ථානයට
     if lagna_name in rashi_order:
         idx = rashi_order.index(lagna_name)
         rotated = rashi_order[idx:] + rashi_order[:idx]
     else:
         rotated = rashi_order
     
-    # ග්‍රහ සංකේත
     symbols = {"රවි": "☀️", "සඳු": "🌙", "කුජ": "♂️", "බුධ": "☿",
                "ගුරු": "♃", "සිකුරු": "♀️", "ශනි": "♄", "රාහු": "☊", "කේතු": "☋"}
     
-    # Grid එක
     st.markdown('<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0;">', unsafe_allow_html=True)
     
     for i, rashi in enumerate(rotated):
-        # planets list එක safe ලෙස ලබා ගැනීම
         planets = rashi_chart.get(rashi, [])
         if planets is None:
             planets = []
@@ -360,7 +378,6 @@ def display_rashi_chart(rashi_chart, lagna_name):
                 planet_symbols.append(symbols.get(short, "●"))
         
         display = " ".join(planet_symbols) if planet_symbols else "—"
-        
         is_lagna = (i == 0)
         bg = "#e94560" if is_lagna else "#0f3460"
         border = "2px solid #ffd700" if is_lagna else "1px solid #e94560"
@@ -377,7 +394,6 @@ def display_rashi_chart(rashi_chart, lagna_name):
 
 # ==================== Display Results ====================
 def display_results():
-    """ප්‍රතිඵල ප්‍රදර්ශනය"""
     if not st.session_state.calculation_result:
         return
     
@@ -386,7 +402,6 @@ def display_results():
     st.markdown("---")
     st.markdown("## 📊 ගණනය කිරීමේ ප්‍රතිඵල")
     
-    # ප්‍රධාන කාඩ්පත්
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown(f'<div class="detail-card"><small>⭐ ලග්නය</small><div class="value">{r["lagna"]}</div><small>{r["lagna_lord"]}</small></div>', unsafe_allow_html=True)
@@ -397,10 +412,8 @@ def display_results():
     with col4:
         st.markdown(f'<div class="detail-card"><small>🦁 යෝනිය</small><div class="value">{r["nak_yoni"]}</div></div>', unsafe_allow_html=True)
     
-    # රාශි චක්‍රය
     display_rashi_chart(r["rashi_chart"], r["lagna"])
     
-    # භාව පිහිටීම්
     st.subheader("🏠 ග්‍රහ පිහිටීම් (භාව අනුව)")
     bhava_items = list(r["bhava_map"].items())
     col1, col2 = st.columns(2)
@@ -411,12 +424,10 @@ def display_results():
             else:
                 st.markdown(f"**{bhava} වන භාවය:** -")
     
-    # ග්‍රහ දේශාංශ
     with st.expander("🔭 ග්‍රහයින්ගේ සම්පූර්ණ දේශාංශ"):
         for planet, data in r["planet_positions"].items():
             st.write(f"**{planet}:** {data['rashi']} රාශියේ {data['degree']:.2f}°")
     
-    # AI Report Button
     if st.button("🤖 AI පලාපල විස්තරය", use_container_width=True):
         with st.spinner("AI විශ්ලේෂණය කරමින්..."):
             st.session_state.ai_report = generate_ai_report(r)
@@ -447,9 +458,7 @@ def get_api_keys():
     return keys
 
 def generate_ai_report(data):
-    """AI පලාපල වාර්තාව"""
     keys = get_api_keys()
-    
     salutation = "මහතා" if data.get('gender') == "පිරිමි" else "මහත්මිය"
     
     prompt = f"""ඔබ ශ්‍රී ලංකාවේ ප්‍රමුඛ ජ්‍යොතිෂවේදියෙකි.
@@ -487,7 +496,6 @@ def generate_ai_report(data):
         except:
             continue
     
-    # Basic report if AI fails
     return f"""<div class="result-card">
 <h2>🌟 {data['name']} {salutation} ගේ පලාපල වාර්තාව</h2>
 <hr>
