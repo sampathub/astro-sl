@@ -276,7 +276,7 @@ def calculate_astrology(name, gender, dob, hour, minute, city):
 
 # ==================== API Key Setup ====================
 # ඔබගේ API Key එක මෙහි සකසන්න
-GEMINI_API_KEY = "AIzaSyADgOwRGntVg6HCS0T42IzRkNXmSKC_DOU"
+GEMINI_API_KEY = "AIzaSyDqULBfYgFOTzqSX_HqJ-2C8rCq1LkiyVk"
 
 # ==================== AI Report Generation ====================
 def get_ai_report(calc_data):
