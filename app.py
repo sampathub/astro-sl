@@ -287,7 +287,7 @@ def get_ai_report(calc_data):
         genai.configure(api_key=GEMINI_API_KEY)
         
         # Use gemini-1.5-flash model
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         salutation = "මහතා" if calc_data.get('gender') == "පිරිමි" else "මහත්මිය"
         
